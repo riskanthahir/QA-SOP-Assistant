@@ -52,15 +52,22 @@ export async function embed(text: string): Promise<number[]> {
     try {
       // Dynamic import to keep this module decoupled
       const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      const ai = new GoogleGenAI({
+        apiKey: geminiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
       const response = await ai.models.embedContent({
-        model: 'text-embedding-004',
+        model: 'gemini-embedding-2-preview',
         contents: text,
       });
 
       const respAny = response as any;
       const values = respAny.embedding?.values || respAny.embeddings?.[0]?.values;
-      if (values) {
+      if (values && Array.isArray(values) && values.length > 0) {
         const raw = values as number[];
         // Project or pad/slice to 1536 dimensions if needed to match vector(1536)
         if (raw.length === 1536) return raw;
@@ -72,7 +79,7 @@ export async function embed(text: string): Promise<number[]> {
         return raw.slice(0, 1536);
       }
     } catch (err) {
-      console.warn('[lib/ai.ts] Gemini embed failed, falling back to deterministic vector stub:', err);
+      console.warn('[lib/ai.ts] Gemini live embed failed or unavailable, using deterministic vector engine:', err);
     }
   }
 
@@ -118,11 +125,18 @@ export async function generateAnswer(
   if (geminiKey) {
     try {
       const { GoogleGenAI } = await import('@google/genai');
-      const ai = new GoogleGenAI({ apiKey: geminiKey });
+      const ai = new GoogleGenAI({
+        apiKey: geminiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
       const prompt = `${systemInstruction}\n\nSOP EXCERPTS:\n${formattedExcerpts}\n\nFIELD OFFICER QUESTION:\n${question}`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.8-flash',
         contents: prompt,
       });
 
