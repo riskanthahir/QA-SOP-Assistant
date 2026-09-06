@@ -13,7 +13,7 @@ app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
 // ------------------------------------------------------------------------------
-// API Routes
+// API Routes (Directly synced to Supabase PostgreSQL & pgvector)
 // ------------------------------------------------------------------------------
 
 // Health check
@@ -21,50 +21,117 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'Dialog SOP Assistant API', timestamp: new Date().toISOString() });
 });
 
-// Profiles & Auth
-app.get('/api/profiles', (req, res) => {
-  const profiles = sopStore.getAllProfiles();
-  res.json(profiles);
+// Authentication (Direct Database Auth with Supabase)
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Please provide both email and password.' });
+    }
+    const authResult = await sopStore.authenticateUser(email, password);
+    res.json(authResult);
+  } catch (err: any) {
+    console.error('Authentication error:', err?.message || err);
+    res.status(401).json({
+      error: err?.message || 'Authentication failed. Only registered accounts in the database can log in.'
+    });
+  }
 });
 
-app.post('/api/profiles/language', (req, res) => {
-  const { userId, language } = req.body;
-  if (!userId || !language) {
-    return res.status(400).json({ error: 'Missing userId or language' });
+app.post('/api/auth/verify', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const token = req.body.token || (authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null);
+    if (!token) {
+      return res.status(401).json({ error: 'No authentication token provided.' });
+    }
+    const verified = await sopStore.verifySession(token);
+    res.json(verified);
+  } catch (err: any) {
+    res.status(401).json({ error: err?.message || 'Invalid or expired session.' });
   }
-  const updated = sopStore.updateProfileLanguage(userId, language);
-  res.json({ profile: updated });
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// Profiles & Language
+app.get('/api/profiles', async (req, res) => {
+  try {
+    const profiles = await sopStore.getAllProfiles();
+    res.json(profiles);
+  } catch (err: any) {
+    console.error('Error fetching profiles:', err);
+    res.status(500).json({ error: 'Failed to fetch profiles from database' });
+  }
+});
+
+app.post('/api/profiles/language', async (req, res) => {
+  try {
+    const { userId, language } = req.body;
+    if (!userId || !language) {
+      return res.status(400).json({ error: 'Missing userId or language' });
+    }
+    const updated = await sopStore.updateProfileLanguage(userId, language);
+    res.json({ profile: updated });
+  } catch (err: any) {
+    console.error('Error updating language:', err);
+    res.status(500).json({ error: 'Failed to update profile language' });
+  }
 });
 
 // Rate limiting check
-app.get('/api/rate-limit', (req, res) => {
-  const userId = (req.query.userId as string) || 'usr-officer-01';
-  const status = sopStore.checkRateLimit(userId, 50);
-  res.json(status);
+app.get('/api/rate-limit', async (req, res) => {
+  try {
+    const userId = (req.query.userId as string) || 'default';
+    const status = await sopStore.checkRateLimit(userId, 50);
+    res.json(status);
+  } catch (err: any) {
+    res.json({ allowed: true, limit: 50, used: 0, resetMinutes: 60 });
+  }
 });
 
 // Chats
-app.get('/api/chats', (req, res) => {
-  const userId = (req.query.userId as string) || 'usr-officer-01';
-  const chats = sopStore.getUserChats(userId);
-  res.json(chats);
-});
-
-app.post('/api/chats', (req, res) => {
-  const { userId, title } = req.body;
-  if (!userId) {
-    return res.status(400).json({ error: 'Missing userId' });
+app.get('/api/chats', async (req, res) => {
+  try {
+    const userId = req.query.userId as string;
+    if (!userId) {
+      return res.json([]);
+    }
+    const chats = await sopStore.getUserChats(userId);
+    res.json(chats);
+  } catch (err: any) {
+    console.error('Error fetching chats:', err);
+    res.status(500).json({ error: 'Failed to fetch chats' });
   }
-  const chat = sopStore.createChat(userId, title);
-  res.json(chat);
 });
 
-app.get('/api/chats/:id/messages', (req, res) => {
-  const messages = sopStore.getChatMessages(req.params.id);
-  res.json(messages);
+app.post('/api/chats', async (req, res) => {
+  try {
+    const { userId, title } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'Missing userId' });
+    }
+    const chat = await sopStore.createChat(userId, title);
+    res.json(chat);
+  } catch (err: any) {
+    console.error('Error creating chat:', err);
+    res.status(500).json({ error: 'Failed to create chat' });
+  }
 });
 
-// Message Generation with pgvector cosine similarity and AI synthesis
+app.get('/api/chats/:id/messages', async (req, res) => {
+  try {
+    const messages = await sopStore.getChatMessages(req.params.id);
+    res.json(messages);
+  } catch (err: any) {
+    console.error('Error fetching chat messages:', err);
+    res.status(500).json({ error: 'Failed to fetch chat messages' });
+  }
+});
+
+// Message Generation with live pgvector similarity & grounded Gemini synthesis
 app.post('/api/chat/message', async (req, res) => {
   try {
     const { userId, chatId, question } = req.body;
@@ -74,7 +141,7 @@ app.post('/api/chat/message', async (req, res) => {
     }
 
     // 1. Enforce per-user hourly rate limiting
-    const rateLimit = sopStore.checkRateLimit(userId, 50);
+    const rateLimit = await sopStore.checkRateLimit(userId, 50);
     if (!rateLimit.allowed) {
       return res.status(429).json({
         error: `Hourly rate limit exceeded (${rateLimit.limit} queries/hour). Please try again in ${rateLimit.resetMinutes} minutes to control engineering costs.`,
@@ -100,28 +167,43 @@ app.post('/api/chat/message', async (req, res) => {
 });
 
 // Message Feedback
-app.post('/api/chat/feedback', (req, res) => {
-  const { messageId, feedback, feedbackNotes } = req.body;
-  if (!messageId) {
-    return res.status(400).json({ error: 'Missing messageId' });
+app.post('/api/chat/feedback', async (req, res) => {
+  try {
+    const { messageId, feedback, feedbackNotes } = req.body;
+    if (!messageId) {
+      return res.status(400).json({ error: 'Missing messageId' });
+    }
+    const updated = await sopStore.updateMessageFeedback(messageId, feedback, feedbackNotes);
+    res.json({ message: updated });
+  } catch (err: any) {
+    console.error('Error updating feedback:', err);
+    res.status(500).json({ error: 'Failed to update feedback' });
   }
-  const updated = sopStore.updateMessageFeedback(messageId, feedback, feedbackNotes);
-  res.json({ message: updated });
 });
 
 // Admin Document Management
-app.get('/api/admin/documents', (req, res) => {
-  const docs = sopStore.getDocuments();
-  res.json(docs);
+app.get('/api/admin/documents', async (req, res) => {
+  try {
+    const docs = await sopStore.getDocuments();
+    res.json(docs);
+  } catch (err: any) {
+    console.error('Error fetching documents:', err);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
 });
 
-app.post('/api/admin/documents/archive', (req, res) => {
-  const { documentId } = req.body;
-  if (!documentId) {
-    return res.status(400).json({ error: 'Missing documentId' });
+app.post('/api/admin/documents/archive', async (req, res) => {
+  try {
+    const { documentId } = req.body;
+    if (!documentId) {
+      return res.status(400).json({ error: 'Missing documentId' });
+    }
+    const success = await sopStore.archiveDocument(documentId);
+    res.json({ success });
+  } catch (err: any) {
+    console.error('Error archiving document:', err);
+    res.status(500).json({ error: 'Failed to archive document' });
   }
-  const success = sopStore.archiveDocument(documentId);
-  res.json({ success });
 });
 
 app.post('/api/admin/documents/upload', async (req, res) => {
@@ -167,22 +249,32 @@ app.post('/api/admin/documents/upload', async (req, res) => {
   }
 });
 
-app.get('/api/admin/indexing-jobs', (req, res) => {
-  const jobs = sopStore.getIndexingJobs();
-  res.json(jobs);
+app.get('/api/admin/indexing-jobs', async (req, res) => {
+  try {
+    const jobs = await sopStore.getIndexingJobs();
+    res.json(jobs);
+  } catch (err: any) {
+    console.error('Error fetching indexing jobs:', err);
+    res.status(500).json({ error: 'Failed to fetch indexing jobs' });
+  }
 });
 
 // Admin Analytics
-app.get('/api/admin/analytics', (req, res) => {
-  const analytics = sopStore.getAnalytics();
-  res.json(analytics);
+app.get('/api/admin/analytics', async (req, res) => {
+  try {
+    const analytics = await sopStore.getAnalytics();
+    res.json(analytics);
+  } catch (err: any) {
+    console.error('Error fetching analytics:', err);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
 });
 
 // ------------------------------------------------------------------------------
 // Vite Middleware / Static Server
 // ------------------------------------------------------------------------------
 async function startServer() {
-  // Ensure all initial SOP documents and vector embeddings are ready
+  // Ensure all initial SOP documents and vector embeddings are ready in Supabase
   await sopStore.ensureInitialized();
 
   if (process.env.NODE_ENV !== 'production') {

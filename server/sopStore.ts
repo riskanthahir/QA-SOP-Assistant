@@ -1,545 +1,614 @@
-import { embed, computeCosineSimilarity, generateAnswer, SOPChunk as AISOPChunk, SupportedLanguage } from '../lib/ai.js';
-import { SOPDocument, SOPChunk, Chat, Message, IndexingJob, Profile, RateLimitStatus, AnalyticsSummary } from '../src/types.js';
+import { embed, generateAnswer, SOPChunk as AISOPChunk, SupportedLanguage } from '../lib/ai.js';
+import { SOPDocument, SOPChunk, Chat, Message, IndexingJob, Profile, RateLimitStatus, AnalyticsSummary, Citation } from '../src/types.js';
+import { getSupabaseAdmin } from './supabase.js';
 
-// In-memory data store with realistic initial Dialog Axiata PLC field SOPs
+// Live production store backed 100% by Supabase (PostgreSQL + pgvector)
 export class SOPStore {
-  private profiles: Map<string, Profile> = new Map();
-  private documents: Map<string, SOPDocument> = new Map();
-  private chunks: Map<string, SOPChunk> = new Map();
-  private chats: Map<string, Chat> = new Map();
-  private messages: Map<string, Message> = new Map();
-  private indexingJobs: Map<string, IndexingJob> = new Map();
-  private rateLimits: Map<string, { count: number; resetTime: number }> = new Map();
   private initPromise: Promise<void>;
 
   constructor() {
-    this.initPromise = this.seedInitialData();
+    this.initPromise = this.bootstrapDatabase();
   }
 
   public async ensureInitialized() {
     await this.initPromise;
   }
 
-  // Pre-seed field officers, engineering admins, and official Dialog Axiata SOPs
-  private async seedInitialData() {
-    // 1. Profiles
-    const officer1: Profile = {
-      id: 'usr-officer-01',
-      role: 'officer',
-      full_name: 'Kasun Bandara (Field Officer - Western North)',
-      language: 'en',
-      created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
-    };
-    const officer2: Profile = {
-      id: 'usr-officer-02',
-      role: 'officer',
-      full_name: 'Nimali Senanayake (Field Engineer - Central Region)',
-      language: 'si',
-      created_at: new Date(Date.now() - 25 * 86400000).toISOString(),
-    };
-    const admin1: Profile = {
-      id: 'usr-admin-01',
-      role: 'admin',
-      full_name: 'Eng. Rohan Jayasuriya (Head of Field Operations & Quality)',
-      language: 'en',
-      created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
-    };
+  /**
+   * Bootstraps Supabase tables if they are empty so the live database is immediately usable.
+   */
+  private async bootstrapDatabase() {
+    try {
+      const supabase = getSupabaseAdmin();
 
-    this.profiles.set(officer1.id, officer1);
-    this.profiles.set(officer2.id, officer2);
-    this.profiles.set(admin1.id, admin1);
+      // 1. Ensure strictly ONE master admin account (rizkan6@gmail.com) exists in Supabase
+      const { data: usersData } = await supabase.auth.admin.listUsers();
+      const allUsers = usersData?.users || [];
+      let masterUser = allUsers.find((u) => u.email?.toLowerCase() === 'rizkan6@gmail.com');
 
-    // 2. Official Dialog Axiata SOP Documents
-    const doc1: SOPDocument = {
-      id: 'doc-ftth-01',
-      title: 'Dialog SOP-ENG-FTTH-01: Optical Fiber to the Home Drop Cable Installation & ONT Splicing',
-      version: '3.2',
-      storage_path: 'sops/Dialog_SOP_ENG_FTTH_01_v3.2.pdf',
-      status: 'active',
-      uploaded_by: admin1.id,
-      uploader_name: admin1.full_name,
-      uploaded_at: new Date(Date.now() - 14 * 86400000).toISOString(),
-    };
+      if (!masterUser) {
+        console.log('[SOPStore] Registering Master Admin (rizkan6@gmail.com) in Supabase Auth...');
+        const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+          email: 'rizkan6@gmail.com',
+          password: 'MasterAdminPassword2026!',
+          email_confirm: true,
+          user_metadata: {
+            full_name: 'Eng. Rizkan (Master Administrator)',
+            role: 'admin',
+          },
+        });
+        if (createErr) {
+          console.error('[SOPStore] Error creating master admin:', createErr);
+        } else {
+          masterUser = created?.user;
+        }
+      }
 
-    const doc2: SOPDocument = {
-      id: 'doc-twr-04',
-      title: 'Dialog SOP-ENG-TWR-04: Grounding, Surge Protection & Antenna Alignment for Macro Cell Sites',
-      version: '2.1',
-      storage_path: 'sops/Dialog_SOP_ENG_TWR_04_v2.1.pdf',
-      status: 'active',
-      uploaded_by: admin1.id,
-      uploader_name: admin1.full_name,
-      uploaded_at: new Date(Date.now() - 10 * 86400000).toISOString(),
-    };
+      // Strictly remove all other users from Supabase Auth and profiles
+      if (masterUser) {
+        for (const u of allUsers) {
+          if (u.id !== masterUser.id) {
+            console.log(`[SOPStore] Removing non-master user from database: ${u.email} (${u.id})`);
+            await supabase.from('sop_documents').update({ uploaded_by: masterUser.id }).eq('uploaded_by', u.id);
+            await supabase.from('chats').update({ user_id: masterUser.id }).eq('user_id', u.id);
+            await supabase.auth.admin.deleteUser(u.id);
+            await supabase.from('profiles').delete().eq('id', u.id);
+          }
+        }
 
-    const doc3: SOPDocument = {
-      id: 'doc-pwr-02',
-      title: 'Dialog SOP-ENG-PWR-02: 48V DC Battery Bank Commissioning & Solar Hybrid Inverter Maintenance',
-      version: '1.8',
-      storage_path: 'sops/Dialog_SOP_ENG_PWR_02_v1.8.pdf',
-      status: 'active',
-      uploaded_by: admin1.id,
-      uploader_name: admin1.full_name,
-      uploaded_at: new Date(Date.now() - 7 * 86400000).toISOString(),
-    };
+        // Ensure profile for master admin is created and has role admin
+        const { data: existingProfile } = await supabase.from('profiles').select('*').eq('id', masterUser.id).single();
+        if (!existingProfile) {
+          await supabase.from('profiles').insert({
+            id: masterUser.id,
+            role: 'admin',
+            full_name: 'Eng. Rizkan (Master Administrator)',
+            language: 'en',
+          });
+        }
+      }
 
-    const docOld: SOPDocument = {
-      id: 'doc-ftth-old',
-      title: 'Dialog SOP-ENG-FTTH-01: Fiber Drop Cable Installation & Splicing (Legacy Fast-Connector Edition)',
-      version: '2.0',
-      storage_path: 'sops/Dialog_SOP_ENG_FTTH_01_v2.0_archived.pdf',
-      status: 'archived',
-      uploaded_by: admin1.id,
-      uploader_name: admin1.full_name,
-      uploaded_at: new Date(Date.now() - 120 * 86400000).toISOString(),
-    };
+      // 2. Ensure initial official Dialog Axiata SOP documents exist in Supabase
+      const { count: docCount } = await supabase.from('sop_documents').select('*', { count: 'exact', head: true });
+      if (!docCount || docCount === 0) {
+        console.log('[SOPStore] Initializing official Dialog SOP documents and pgvector chunks in Supabase...');
+        const { data: profiles } = await supabase.from('profiles').select('id, role');
+        const adminProfile = profiles?.find((p) => p.role === 'admin') || profiles?.[0];
+        const adminId = adminProfile?.id;
 
-    this.documents.set(doc1.id, doc1);
-    this.documents.set(doc2.id, doc2);
-    this.documents.set(doc3.id, doc3);
-    this.documents.set(docOld.id, docOld);
-
-    // 3. Section Chunks for Doc 1 (FTTH)
-    const ftthChunks = [
-      {
-        id: 'chk-ftth-hs',
-        document_id: doc1.id,
-        section_label: 'Health & Safety',
-        content: `Mandatory PPE required: Level-3 dielectric hard hat, safety glasses with side shields, high-visibility vest, and safety boots with composite toe caps.
+        if (adminId) {
+          // Document 1: FTTH Drop & Splicing
+          await this.uploadAndIndexSOP(
+            adminId,
+            'Dialog SOP-ENG-FTTH-01: Optical Fiber to the Home Drop Cable Installation & ONT Splicing',
+            '3.2',
+            `1. Health & Safety
+Mandatory PPE required: Level-3 dielectric hard hat, safety glasses with side shields, high-visibility vest, and safety boots with composite toe caps.
 When working on CEB utility poles, conduct voltage proximity check using non-contact AC detector; ensure minimum 1.2m clearance from low-voltage distribution lines.
 Laser Safety: Never look directly into optical fiber connectors, active patch cords, or laser transceiver ports. Invisible infrared radiation (1310nm/1490nm/1550nm Class 1/3B) causes permanent retina burn.
-Fiber Shards Hazard: Cleaved optical glass shards must immediately be collected into a sealed puncture-proof disposal bin. Never discard fiber fragments on customer premises floors or lawns.`,
-      },
-      {
-        id: 'chk-ftth-tm',
-        document_id: doc1.id,
-        section_label: 'Tools & Materials Required',
-        content: `Core-alignment optical fusion splicer (Fujikura 70S/90S or Sumitomo Z2C) with calibrated arc power.
+Fiber Shards Hazard: Cleaved optical glass shards must immediately be collected into a sealed puncture-proof disposal bin. Never discard fiber fragments on customer premises floors or lawns.
+
+2. Tools & Materials Required
+Core-alignment optical fusion splicer (Fujikura 70S/90S or Sumitomo Z2C) with calibrated arc power.
 High-precision diamond optical fiber cleaver (cleave angle < 0.8 degrees).
 Optical Power Meter calibrated to wavelengths 1310nm, 1490nm, and 1550nm.
 Dialog approved G.657.A2 bend-insensitive 1-core / 2-core aerial drop cable with FRP strength members.
-Drop cable stripper, Miller dual-hole buffer stripper, and Kevlar shears.
-Lint-free optical cleaning wipes and 99.8% Electronic Grade Isopropyl Alcohol (IPA).
-Heat-shrink splice protection sleeves (45mm / 60mm) and Dialog ONT SC/APC pre-terminated pigtails.`,
-      },
-      {
-        id: 'chk-ftth-proc',
-        document_id: doc1.id,
-        section_label: 'Procedure',
-        content: `Step 1: Anchor aerial drop cable at pole DP (Distribution Point) using tension clamp; maintain minimum 4.5m road crossing clearance and 30mm minimum bending radius.
-Step 2: Strip 45mm outer LSZH jacket from drop cable using designated buffer stripper without scoring inner tight buffer.
-Step 3: Strip 250um coating down to bare 125um cladding for a length of 30mm. Clean bare fiber with IPA wipe using a single unidirectional stroke.
-Step 4: Place clean fiber into precision cleaver; cleave fiber precisely to 10mm cleave length.
-Step 5: Insert cleaved drop fiber and ONT pigtail into fusion splicer V-grooves; execute auto-splice. Splice loss must measure 0.03 dB or lower (reject if > 0.05 dB).
-Step 6: Center splice sleeve over heating element and shrink for 20 seconds. Store protected sleeve safely inside ONT fiber management tray.
-Step 7: Connect SC/APC connector to Optical Power Meter. Verify optical input power is within Dialog spec: -18.0 dBm to -24.0 dBm. If loss exceeds -25.0 dBm, re-clean or re-splice immediately.`,
-      },
-      {
-        id: 'chk-ftth-sc',
-        document_id: doc1.id,
-        section_label: 'Site Cleanup & Handover',
-        content: `Inspect work area for stray optical glass slivers using adhesive tape sweep.
-Secure wall entry hole with Dialog approved UV-resistant neoprene wall bushing and outdoor silicone sealant.
-Coil excess drop slack neatly inside customer premises enclosure; do not exceed bend limit.
-Affix Dialog customer asset barcode on the ONT underside. Complete optical power log in mDialog mobile app and obtain customer digital sign-off.`,
-      },
-    ];
+40mm micro-heat shrink splice protection sleeves and 99.9% isopropyl alcohol (IPA) lint-free wipes.
 
-    // Chunks for Doc 2 (Tower & Antenna)
-    const twrChunks = [
-      {
-        id: 'chk-twr-hs',
-        document_id: doc2.id,
-        section_label: 'Health & Safety',
-        content: `100% tie-off mandatory: Field engineers climbing telecommunication towers must utilize full-body safety harness with dual shock-absorbing lanyards and rope grab fall arrester.
-Suspension trauma relief straps must be attached to harness.
-Climbing prohibited during adverse weather, thunderstorm warnings, or wind speeds exceeding 40 km/h.
-Contact Dialog Network Operations Center (NOC) to inhibit RF transmission on sectors before entering the direct antenna RF radiation aperture zone.`,
-      },
-      {
-        id: 'chk-twr-tm',
-        document_id: doc2.id,
-        section_label: 'Tools & Materials Required',
-        content: `Calibrated digital compass and dual-axis antenna alignment tool (3Z Telecom / Sunsight).
-Insulated torque wrenches (10 Nm to 50 Nm capacity).
-Cadweld exothermic welding kit or Dialog approved C-crimp grounding connectors.
-Fluke 1625-2 earth ground resistance clamp meter.
-Tinned copper ground tape 25mm x 3mm and 35mm² green/yellow PVC insulated copper earth conductor.
-3M Cold Shrink Weatherproofing Kits for 7/16 DIN and 4.3-10 connector assemblies.`,
-      },
-      {
-        id: 'chk-twr-proc',
-        document_id: doc2.id,
-        section_label: 'Procedure',
-        content: `Step 1: Measure existing site tower earth resistance using 3-pole ground tester. Resistance must be strictly below 5.0 Ohms (Dialog telecom standard).
-Step 2: Fasten sector antenna mounting brackets to tower boom. Align azimuth and mechanical tilt according to Dialog RF Planning Work Order with ±0.5 degree precision.
-Step 3: Connect RF feeder cables; tighten 4.3-10 connector nuts to specified torque (12 Nm) and 7/16 DIN to (28 Nm) using calibrated torque wrench. Never hand-tighten.
-Step 4: Weatherproof all outdoor RF connections using 3-layer method (insulating vinyl tape, butyl mastic tape, and UV-resistant outer vinyl tape) or certified cold-shrink sleeve.
-Step 5: Bond antenna mount framework and feeder surge arrestor grounding kits to tower main grounding bar (TMGB) using 35mm² copper conductor with bi-metallic washers.`,
-      },
-      {
-        id: 'chk-twr-sc',
-        document_id: doc2.id,
-        section_label: 'Site Cleanup & Handover',
-        content: `Verify all tools are secured before descending.
-Re-lock tower safety climb ladder security gate.
-Coordinate with Dialog NOC to lift RF carrier power inhibit and verify VSWR is below 1.2:1 across all active carriers.
-Submit antenna alignment photo report with digital timestamp and GPS stamp via Dialog Field Portal.`,
-      },
-    ];
+3. Procedure
+Step 1: Route aerial drop cable from distribution FAT (Fiber Access Terminal) to customer premises anchor bracket maintaining minimum 4.5m road crossing clearance.
+Step 2: Strip outer LSZH drop sheath back 100mm using precision drop stripper. Degrease optical fiber coating using 99.9% IPA lint-free wipe.
+Step 3: Cleave bare fiber to exact 10mm cleave length. Verify cleave end-face angle is strictly under 0.8 degrees on splicer display.
+Step 4: Load cleaved fiber into splicer V-grooves. Run auto-alignment program (SM FAST). Splice loss must measure <= 0.03 dB.
+Step 5: Slide 40mm heat-shrink protection sleeve over splice joint; apply 20-second oven heater cycle (190°C).
+Step 6: Connect Optical Power Meter at customer ONT patch cord terminal. Verify received signal level is strictly within -18 dBm to -24 dBm window (-27 dBm absolute low limit).
 
-    // Chunks for Doc 3 (Power & Battery)
-    const pwrChunks = [
-      {
-        id: 'chk-pwr-hs',
-        document_id: doc3.id,
-        section_label: 'Health & Safety',
-        content: `Arc Flash and High Current DC Risk: Battery banks have short-circuit capability in excess of 5000A.
-Field officers must remove all metallic wristwatches, rings, belt buckles, and necklaces prior to entering battery compartments.
-Wear Class-0 (1000V DC rated) dielectric safety gloves and ANSI approved polycarbonate arc face shield.
-Ensure battery room ventilation fan is operational to prevent hydrogen gas accumulation during charge cycles. Keep dry chemical Class-C fire extinguisher at door.`,
-      },
-      {
-        id: 'chk-pwr-tm',
-        document_id: doc3.id,
-        section_label: 'Tools & Materials Required',
-        content: `Fully insulated torque wrench (8 Nm - 15 Nm range).
-CAT IV 600V certified Digital Multimeter with calibrated test leads.
-Midtronics or Hioki battery conductance and internal resistance tester.
-Torque seal tamper indicator lacquer (fluorescent yellow).
-Acid neutralizer / baking soda solution and lint-free cotton towels.
-Pure copper inter-cell connector busbars with nickel plating.`,
-      },
-      {
-        id: 'chk-pwr-proc',
-        document_id: doc3.id,
-        section_label: 'Procedure',
-        content: `Step 1: Switch OFF rectifier DC load breaker feeding the battery bank under maintenance; verify zero current flow with DC clamp meter.
-Step 2: Clean battery cell terminals using dry lint-free wipe. Clean any minor lead-sulfate corrosion with neutralizer paste.
-Step 3: Inspect inter-cell links; tighten all terminal bolts to manufacturer torque (12 Nm for M8 brass bolts).
-Step 4: Apply yellow torque seal indicator stripe across bolt head and washer to reveal any vibration loosening.
-Step 5: Measure individual cell internal conductance and record float voltage (Standard: 2.25V to 2.27V per 2V cell, total string float 54.0V ± 0.2V).
-Step 6: Switch ON rectifier breaker. Simulate AC mains fail by opening ATS breaker; observe battery bank voltage under live telecom site load for 15 minutes. Voltage must remain > 49.0V.`,
-      },
-      {
-        id: 'chk-pwr-sc',
-        document_id: doc3.id,
-        section_label: 'Site Cleanup & Handover',
-        content: `Dispose of all chemically contaminated wipes in hazard waste container.
-Re-seal battery cabinet doors; confirm thermostat and extraction exhaust fans run automatically.
-Record cell conductance data in shelter site logbook. Mark battery bank maintenance sticker with date, next due date, and officer Dialog EPF ID.`,
-      },
-    ];
+4. Site Cleanup & Handover
+Collect all cleaved glass shards into puncture-proof waste bin.
+Inspect optical connector end-faces with 400x fiber scope; clean with one-click pen cleaner before ONT connection.
+Document optical power reading and splice attenuation report in Dialog FSM (Field Service Management) mobile app.`,
+            'sops/Dialog_SOP_ENG_FTTH_01_v3.2.pdf'
+          );
 
-    // Embed all chunks and store
-    for (const chunk of [...ftthChunks, ...twrChunks, ...pwrChunks]) {
-      const vector = await embed(`${chunk.section_label}\n${chunk.content}`);
-      const doc = this.documents.get(chunk.document_id);
-      this.chunks.set(chunk.id, {
-        ...chunk,
-        embedding: vector,
-        document_title: doc?.title,
-        document_version: doc?.version,
+          // Document 2: Macro Site Grounding & Lightning Protection
+          await this.uploadAndIndexSOP(
+            adminId,
+            'Dialog SOP-ENG-TWR-04: Grounding, Surge Protection & Antenna Alignment for Macro Cell Sites',
+            '2.1',
+            `1. Health & Safety
+Work at Heights: Mandatory use of full-body harness with twin shock-absorbing lanyards, work positioning belt, and fall arrester on guided tower safety rail.
+Tower climber maximum continuous work duration is 4 hours with 30-minute mandatory hydration break.
+RF Radiation Safety: Lock out transmitter sectors before climbing in front of antenna apertures; wear personal RF radiation alarm monitor set to ICNIRP public exposure limit.
+Lightning Warning: Cease all tower climbing activities immediately when lightning warning siren triggers or thunder is audible within 10 km.
+
+2. Tools & Materials Required
+Digital Earth Resistance Clamp Meter (Megger DET2/3 or Fluke 1625-2).
+Digital Compass, inclinometer, and high-accuracy GPS azimuth sighting tool.
+Calibrated torque wrench set (10mm - 24mm).
+Dialog standard 25x3mm bare copper earthing tape and 70mm² stranded copper ground cable.
+Exothermic welding equipment (Cadweld molds, weld metal powder #90/115, flint igniter).
+
+3. Procedure
+Step 1: Inspect tower base earth pit. Measure total earth electrode resistance using 3-pole Fall-of-Potential method. Earth loop resistance must strictly be <= 5.0 Ohms (target <= 3.0 Ohms).
+Step 2: Exothermically weld tower leg grounding conductor to copper earth ring using #115 Cadweld cartridge. Apply anti-corrosive petroleum tape over finished weld.
+Step 3: Verify antenna mount mechanical azimuth using GPS alignment tool. Torque sector pipe clamps to 85 Nm in cross pattern.
+Step 4: Connect 16mm² copper earth jumper from antenna chassis and RRU (Remote Radio Unit) ground terminal directly to tower main earthing collector busbar.
+Step 5: Apply Class-1 SPD (Surge Protective Device) on AC mains distribution board; ensure surge suppression ground lead is straight, uncoiled, and <= 0.5m in length.
+
+4. Site Cleanup & Handover
+Ensure all earth pit inspection covers are clean, bolted securely, and labeled with Dialog earthing tag.
+Record final ground resistance (Ohms) and antenna azimuth/tilt angles into Dialog Site Master commissioning portal.`,
+            'sops/Dialog_SOP_ENG_TWR_04_v2.1.pdf'
+          );
+
+          // Document 3: 48V DC Power & Battery Bank
+          await this.uploadAndIndexSOP(
+            adminId,
+            'Dialog SOP-ENG-PWR-02: 48V DC Battery Bank Commissioning & Solar Hybrid Inverter Maintenance',
+            '1.8',
+            `1. Health & Safety
+Arc Flash & Chemical Hazard: Wear Class-0 1000V rated insulated electrical gloves, face shield, and chemical apron when working on live battery banks.
+Remove all metallic jewelry, rings, and wristwatches prior to servicing DC busbars.
+Use only 1000V insulated torque wrenches and hand tools to prevent accidental busbar short-circuits.
+Hydrogen Gas Hazard: Ensure battery room forced ventilation fan is operational before equalizing charge cycle. Prohibit open flames within 5m.
+
+2. Tools & Materials Required
+Calibrated Digital Multimeter (Fluke 87V or equivalent True-RMS).
+Insulated torque wrench (range 5 - 25 Nm).
+Digital battery internal resistance / impedance tester (Hioki BT3554).
+Dialog approved 48V 100Ah / 150Ah VRLA / LiFePO4 battery modules.
+Conductive anti-oxidant grease (NO-OX-ID A-Special).
+
+3. Procedure
+Step 1: Check open-circuit voltage of each 12V battery block; voltage must measure >= 12.60 V before string series assembly.
+Step 2: Clean battery terminal posts with non-metallic wire brush; apply light film of NO-OX-ID anti-oxidant grease.
+Step 3: Assemble string interconnectors. Torque terminal bolts strictly to manufacturer specification (VRLA M8: 11 Nm; LiFePO4 M6: 6 Nm). Do not over-torque.
+Step 4: Configure rectifier float voltage strictly to 54.0V ± 0.2V at 25°C ambient (apply temperature compensation slope of -3.0 mV/°C/cell).
+Step 5: Set low-voltage disconnect (LVD) contactor trigger threshold to 43.2V to prevent irreversible deep cell discharge.
+Step 6: Conduct 1-hour 100A discharge capacity soak test; measure individual cell voltage drops and verify terminal temperature delta <= 5°C with thermal camera.
+
+4. Site Cleanup & Handover
+Install transparent polycarbonate safety covers over all exposed DC busbars and battery terminals.
+Affix Dialog electrical hazard warning label and battery commissioning tag with install date and battery serial numbers.
+Upload cell impedance baseline readings to Dialog Power Infrastructure Operations portal.`,
+            'sops/Dialog_SOP_ENG_PWR_02_v1.8.pdf'
+          );
+          console.log('[SOPStore] Initial Dialog SOP documents and pgvector chunks successfully indexed in Supabase.');
+        }
+      }
+    } catch (err) {
+      console.error('[SOPStore] Error bootstrapping Supabase data:', err);
+    }
+  }
+
+  // ----------------------------------------------------------------------------
+  // Profiles
+  // ----------------------------------------------------------------------------
+
+  public async getAllProfiles(): Promise<Profile[]> {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching profiles from Supabase:', error);
+      return [];
+    }
+
+    try {
+      const { data: usersData } = await supabase.auth.admin.listUsers();
+      const emailMap = new Map<string, string>();
+      usersData?.users.forEach((u) => {
+        if (u.email) emailMap.set(u.id, u.email);
       });
+
+      return (data || []).map((p) => ({
+        ...p,
+        email: emailMap.get(p.id) || undefined,
+      }));
+    } catch {
+      return data || [];
+    }
+  }
+
+  public async authenticateUser(email: string, password: string): Promise<{
+    user: { id: string; email: string; role: string; full_name: string };
+    profile: Profile;
+    token: string;
+  }> {
+    const supabase = getSupabaseAdmin();
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Authenticate directly against Supabase Auth (PostgreSQL DB)
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password,
+    });
+
+    if (error || !data.user) {
+      throw new Error(error?.message || 'Invalid email or password. Access is restricted strictly to database-authenticated users.');
     }
 
-    // Seed sample initial chats and messages
-    const sampleChat: Chat = {
-      id: 'chat-sample-01',
-      user_id: officer1.id,
-      title: 'FTTH Drop Splicing & Optical Power Loss Limit',
-      created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-    };
-    this.chats.set(sampleChat.id, sampleChat);
+    // Verify user profile exists in database
+    const { data: profile, error: profErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
 
-    const msg1: Message = {
-      id: 'msg-s01',
-      chat_id: sampleChat.id,
-      role: 'user',
-      content: 'What is the acceptable optical power level at the ONT and what are the mandatory PPE items for drop splicing?',
-      citations: [],
-      feedback: null,
-      created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
-    };
-
-    const msg2: Message = {
-      id: 'msg-s02',
-      chat_id: sampleChat.id,
-      role: 'assistant',
-      content: `### 🛡️ Health & Safety
-* Mandatory PPE required: Level-3 dielectric hard hat, safety glasses with side shields, high-visibility vest, and safety boots with composite toe caps.
-* Laser Safety: Never look directly into optical fiber connectors or transceiver ports (1310/1490/1550nm invisible laser causes retina damage).
-* Cleaved optical glass shards must immediately be collected into a sealed puncture-proof disposal bin.
-
-### 🧰 Tools & Materials Required
-* Core-alignment optical fusion splicer and precision diamond cleaver.
-* Optical Power Meter calibrated to 1310nm, 1490nm, and 1550nm.
-* 99.8% Electronic Grade Isopropyl Alcohol (IPA) with lint-free wipes.
-* G.657.A2 bend-insensitive drop cable and 45mm heat-shrink sleeves.
-
-### 📋 Procedure
-1. Clean bare fiber with IPA wipe using a single unidirectional stroke.
-2. Cleave fiber precisely to 10mm cleave length.
-3. Splice loss must measure 0.03 dB or lower (reject if > 0.05 dB).
-4. Connect SC/APC connector to Optical Power Meter. Verify optical input power is within Dialog spec: -18.0 dBm to -24.0 dBm. If loss exceeds -25.0 dBm, re-splice immediately.
-
-### 🧹 Site Cleanup & Handover
-* Inspect work area for stray optical glass slivers using adhesive tape sweep.
-* Secure wall entry hole with Dialog approved UV-resistant neoprene wall bushing.
-* Affix Dialog customer asset barcode on the ONT underside.
-
-### 📌 Source SOPs & Sections Used
-* "Dialog SOP-ENG-FTTH-01: Optical Fiber to the Home Drop Cable Installation & ONT Splicing" (v3.2) - Section: Health & Safety
-* "Dialog SOP-ENG-FTTH-01: Optical Fiber to the Home Drop Cable Installation & ONT Splicing" (v3.2) - Section: Procedure`,
-      citations: [
-        {
-          documentTitle: doc1.title,
-          version: doc1.version,
-          sectionLabel: 'Health & Safety',
-          excerpt: 'Mandatory PPE required: Level-3 dielectric hard hat, safety glasses with side shields...',
-          similarity: 0.89,
-        },
-        {
-          documentTitle: doc1.title,
-          version: doc1.version,
-          sectionLabel: 'Procedure',
-          excerpt: 'Connect SC/APC connector to Optical Power Meter. Verify optical input power is within Dialog spec: -18.0 dBm to -24.0 dBm...',
-          similarity: 0.94,
-        },
-      ],
-      feedback: 'up',
-      created_at: new Date(Date.now() - 2 * 86400000 + 3000).toISOString(),
-    };
-
-    this.messages.set(msg1.id, msg1);
-    this.messages.set(msg2.id, msg2);
-
-    // Seed indexing job for initial docs
-    const job1: IndexingJob = {
-      id: 'job-01',
-      document_id: doc1.id,
-      document_title: doc1.title,
-      status: 'done',
-      error: null,
-      created_at: doc1.uploaded_at,
-      extracted_sections_count: 4,
-    };
-    const job2: IndexingJob = {
-      id: 'job-02',
-      document_id: doc2.id,
-      document_title: doc2.title,
-      status: 'done',
-      error: null,
-      created_at: doc2.uploaded_at,
-      extracted_sections_count: 4,
-    };
-    const job3: IndexingJob = {
-      id: 'job-03',
-      document_id: doc3.id,
-      document_title: doc3.title,
-      status: 'done',
-      error: null,
-      created_at: doc3.uploaded_at,
-      extracted_sections_count: 4,
-    };
-    this.indexingJobs.set(job1.id, job1);
-    this.indexingJobs.set(job2.id, job2);
-    this.indexingJobs.set(job3.id, job3);
-  }
-
-  // User Profile
-  public getProfile(userId: string): Profile | undefined {
-    return this.profiles.get(userId);
-  }
-
-  public getAllProfiles(): Profile[] {
-    return Array.from(this.profiles.values());
-  }
-
-  public updateProfileLanguage(userId: string, language: SupportedLanguage): Profile | undefined {
-    const p = this.profiles.get(userId);
-    if (p) {
-      p.language = language;
-      p.updated_at = new Date().toISOString();
-      this.profiles.set(userId, p);
-    }
-    return p;
-  }
-
-  // Rate Limiting (50 queries / hour per user)
-  public checkRateLimit(userId: string, maxPerHour: number = 50): RateLimitStatus {
-    const now = Date.now();
-    const windowMs = 3600000;
-    const entry = this.rateLimits.get(userId);
-
-    if (!entry || now > entry.resetTime) {
-      this.rateLimits.set(userId, { count: 1, resetTime: now + windowMs });
-      return { allowed: true, used: 1, limit: maxPerHour, resetMinutes: 60 };
+    if (profErr || !profile) {
+      throw new Error('Authenticated user profile was not found in the database.');
     }
 
-    if (entry.count >= maxPerHour) {
-      const resetMinutes = Math.max(1, Math.ceil((entry.resetTime - now) / 60000));
-      return { allowed: false, used: entry.count, limit: maxPerHour, resetMinutes };
-    }
+    const fullProfile: Profile = {
+      ...profile,
+      email: data.user.email,
+    };
 
-    entry.count += 1;
-    this.rateLimits.set(userId, entry);
-    const resetMinutes = Math.max(1, Math.ceil((entry.resetTime - now) / 60000));
-    return { allowed: true, used: entry.count, limit: maxPerHour, resetMinutes };
+    return {
+      user: {
+        id: data.user.id,
+        email: data.user.email || cleanEmail,
+        role: profile.role,
+        full_name: profile.full_name,
+      },
+      profile: fullProfile,
+      token: data.session?.access_token || '',
+    };
   }
 
+  public async verifySession(token: string): Promise<{
+    user: { id: string; email: string; role: string; full_name: string };
+    profile: Profile;
+  }> {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data.user) {
+      throw new Error('Session expired or invalid. Please authenticate again.');
+    }
+
+    const { data: profile, error: profErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (profErr || !profile) {
+      throw new Error('User profile record does not exist in the database.');
+    }
+
+    return {
+      user: {
+        id: data.user.id,
+        email: data.user.email || '',
+        role: profile.role,
+        full_name: profile.full_name,
+      },
+      profile: {
+        ...profile,
+        email: data.user.email,
+      },
+    };
+  }
+
+  public async updateProfileLanguage(userId: string, language: SupportedLanguage): Promise<Profile | null> {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ language })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating profile language in Supabase:', error);
+      throw error;
+    }
+    return data;
+  }
+
+  // ----------------------------------------------------------------------------
+  // Rate Limiting (Hourly rolling window per user)
+  // ----------------------------------------------------------------------------
+
+  public async checkRateLimit(userId: string, limitPerHour: number = 50): Promise<RateLimitStatus> {
+    const supabase = getSupabaseAdmin();
+    const oneHourAgo = new Date(Date.now() - 3600 * 1000).toISOString();
+
+    try {
+      // Count messages submitted by this user in the last hour
+      const { data: userChats } = await supabase
+        .from('chats')
+        .select('id')
+        .eq('user_id', userId);
+
+      const chatIds = (userChats || []).map((c) => c.id);
+      if (chatIds.length === 0) {
+        return { allowed: true, limit: limitPerHour, used: 0, resetMinutes: 60 };
+      }
+
+      const { count } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .in('chat_id', chatIds)
+        .eq('role', 'user')
+        .gte('created_at', oneHourAgo);
+
+      const used = count || 0;
+      return {
+        allowed: used < limitPerHour,
+        limit: limitPerHour,
+        used,
+        resetMinutes: 60,
+      };
+    } catch (err) {
+      console.warn('Rate limit check fallback:', err);
+      return { allowed: true, limit: limitPerHour, used: 1, resetMinutes: 60 };
+    }
+  }
+
+  // ----------------------------------------------------------------------------
   // Chats & Messages
-  public getUserChats(userId: string): Chat[] {
-    return Array.from(this.chats.values())
-      .filter(c => c.user_id === userId)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }
+  // ----------------------------------------------------------------------------
 
-  public getChat(chatId: string): Chat | undefined {
-    return this.chats.get(chatId);
-  }
+  public async getUserChats(userId: string): Promise<Chat[]> {
+    const supabase = getSupabaseAdmin();
+    const { data: chats, error } = await supabase
+      .from('chats')
+      .select('id, user_id, title, created_at, messages(id, content, created_at)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
-  public createChat(userId: string, title?: string): Chat {
-    const chat: Chat = {
-      id: `chat-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      user_id: userId,
-      title: title || 'New SOP Consultation',
-      created_at: new Date().toISOString(),
-    };
-    this.chats.set(chat.id, chat);
-    return chat;
-  }
-
-  public getChatMessages(chatId: string): Message[] {
-    return Array.from(this.messages.values())
-      .filter(m => m.chat_id === chatId)
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  }
-
-  public updateMessageFeedback(messageId: string, feedback: 'up' | 'down' | null, feedbackNotes?: string): Message | undefined {
-    const msg = this.messages.get(messageId);
-    if (msg) {
-      msg.feedback = feedback;
-      if (feedbackNotes !== undefined) msg.feedback_notes = feedbackNotes;
-      this.messages.set(messageId, msg);
+    if (error) {
+      console.error('Error fetching chats from Supabase:', error);
+      return [];
     }
-    return msg;
+
+    return (chats || []).map((c: any) => {
+      const msgs = Array.isArray(c.messages) ? c.messages : [];
+      const lastMsg = msgs.sort(
+        (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )[0];
+
+      return {
+        id: c.id,
+        user_id: c.user_id,
+        title: c.title,
+        created_at: c.created_at,
+        message_count: msgs.length,
+        last_message: lastMsg?.content
+          ? lastMsg.content.slice(0, 70) + (lastMsg.content.length > 70 ? '...' : '')
+          : undefined,
+      };
+    });
   }
 
-  // Core Retrieval & Question Answering
+  public async createChat(userId: string, title?: string): Promise<Chat> {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('chats')
+      .insert({
+        user_id: userId,
+        title: title || 'New SOP Consultation',
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating chat in Supabase:', error);
+      throw error;
+    }
+    return data;
+  }
+
+  public async getChatMessages(chatId: string): Promise<Message[]> {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('chat_id', chatId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching messages from Supabase:', error);
+      return [];
+    }
+
+    return (data || []).map((m: any) => ({
+      id: m.id,
+      chat_id: m.chat_id,
+      role: m.role,
+      content: m.content,
+      citations: Array.isArray(m.citations) ? m.citations : [],
+      feedback: m.feedback,
+      feedback_notes: m.feedback_notes,
+      created_at: m.created_at,
+    }));
+  }
+
   public async handleUserQuestion(
     userId: string,
     chatId: string,
     question: string
   ): Promise<{ userMessage: Message; assistantMessage: Message }> {
-    await this.ensureInitialized();
-    const profile = this.getProfile(userId);
-    const language = profile?.language || 'en';
+    const supabase = getSupabaseAdmin();
 
-    // 1. Save user message
-    const userMsg: Message = {
-      id: `msg-${Date.now()}-u`,
-      chat_id: chatId,
-      role: 'user',
-      content: question,
-      citations: [],
-      feedback: null,
-      created_at: new Date().toISOString(),
-    };
-    this.messages.set(userMsg.id, userMsg);
+    // 1. Insert user message into Supabase
+    const { data: userMsg, error: userMsgErr } = await supabase
+      .from('messages')
+      .insert({
+        chat_id: chatId,
+        role: 'user',
+        content: question,
+        citations: [],
+      })
+      .select()
+      .single();
 
-    // Update chat title if first message
-    const chat = this.chats.get(chatId);
-    if (chat && chat.title === 'New SOP Consultation') {
-      chat.title = question.length > 50 ? question.substring(0, 47) + '...' : question;
-      this.chats.set(chatId, chat);
+    if (userMsgErr) {
+      console.error('Error inserting user message:', userMsgErr);
+      throw userMsgErr;
     }
 
-    // 2. Vector search: embed question
-    const queryVector = await embed(question);
+    // 2. Fetch user language
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('language')
+      .eq('id', userId)
+      .single();
+    const language = (profile?.language as SupportedLanguage) || 'en';
 
-    // 3. Query sop_chunks with cosine similarity, ONLY from active documents
-    const activeDocIds = new Set(
-      Array.from(this.documents.values())
-        .filter(d => d.status === 'active')
-        .map(d => d.id)
-    );
+    // 3. Compute question embedding using Gemini / deterministic projection
+    const questionEmbedding = await embed(question);
 
-    const scoredChunks: Array<{ chunk: SOPChunk; similarity: number }> = [];
-
-    for (const chunk of this.chunks.values()) {
-      if (!activeDocIds.has(chunk.document_id) || !chunk.embedding) continue;
-      const sim = computeCosineSimilarity(queryVector, chunk.embedding);
-      scoredChunks.push({ chunk, similarity: sim });
-    }
-
-    // Sort descending by similarity, take top 6
-    scoredChunks.sort((a, b) => b.similarity - a.similarity);
-    const top6 = scoredChunks.slice(0, 6);
-
-    // Format chunks for AI generator
-    const aiContextChunks: AISOPChunk[] = top6.map(({ chunk, similarity }) => {
-      const doc = this.documents.get(chunk.document_id);
-      return {
-        id: chunk.id,
-        documentTitle: doc?.title || 'Dialog Field SOP',
-        version: doc?.version || '1.0',
-        sectionLabel: chunk.section_label,
-        content: chunk.content,
-        similarity,
-      };
+    // 4. Retrieve matching chunks from Supabase using match_sop_chunks RPC
+    const { data: matchedChunks, error: rpcErr } = await supabase.rpc('match_sop_chunks', {
+      query_embedding: questionEmbedding,
+      match_threshold: 0.12,
+      match_count: 6,
     });
 
-    // 4. Generate answer through swappable lib/ai.ts module
-    const answerText = await generateAnswer(question, aiContextChunks, language);
+    if (rpcErr) {
+      console.error('Error running match_sop_chunks RPC:', rpcErr);
+    }
 
-    // 5. Build structured citations
-    const isNotFound = answerText.includes('not found in the approved Dialog') ||
-      answerText.includes('සොයාගත නොහැක') ||
-      answerText.includes('காணப்படவில்லை');
+    const chunks: AISOPChunk[] = (matchedChunks || []).map((c: any) => ({
+      id: c.id,
+      documentId: c.document_id,
+      documentTitle: c.document_title,
+      version: c.document_version,
+      sectionLabel: c.section_label,
+      content: c.content,
+      similarity: c.similarity,
+    }));
 
-    const citations = isNotFound ? [] : aiContextChunks
-      .filter(c => (c.similarity && c.similarity > 0.05) || answerText.includes(c.sectionLabel))
-      .map(c => ({
-        documentTitle: c.documentTitle,
-        version: c.version,
-        sectionLabel: c.sectionLabel,
-        excerpt: c.content.length > 180 ? c.content.substring(0, 177) + '...' : c.content,
-        similarity: Math.round((c.similarity || 0) * 100) / 100,
-      }));
+    // 5. Generate grounded response strictly based on active SOP excerpts
+    const answer = await generateAnswer(question, chunks, language);
 
-    // 6. Save assistant message
-    const assistantMsg: Message = {
-      id: `msg-${Date.now()}-a`,
-      chat_id: chatId,
-      role: 'assistant',
-      content: answerText,
-      citations,
-      feedback: null,
-      created_at: new Date(Date.now() + 100).toISOString(),
+    // 6. Format citations
+    const citations: Citation[] = chunks.map((c) => ({
+      documentTitle: c.documentTitle,
+      version: c.version,
+      sectionLabel: c.sectionLabel,
+      excerpt: c.content.slice(0, 240) + (c.content.length > 240 ? '...' : ''),
+      similarity: c.similarity,
+    }));
+
+    // 7. Insert assistant message into Supabase
+    const { data: assistantMsg, error: asstMsgErr } = await supabase
+      .from('messages')
+      .insert({
+        chat_id: chatId,
+        role: 'assistant',
+        content: answer,
+        citations: citations,
+      })
+      .select()
+      .single();
+
+    if (asstMsgErr) {
+      console.error('Error inserting assistant message:', asstMsgErr);
+      throw asstMsgErr;
+    }
+
+    // 8. Auto-update chat title if still default
+    const { data: currentChat } = await supabase
+      .from('chats')
+      .select('title')
+      .eq('id', chatId)
+      .single();
+
+    if (currentChat && currentChat.title === 'New SOP Consultation') {
+      const cleanTitle = question.slice(0, 42).replace(/[?.\n]/g, '').trim() || 'SOP Consultation';
+      await supabase.from('chats').update({ title: cleanTitle }).eq('id', chatId);
+    }
+
+    return {
+      userMessage: userMsg,
+      assistantMessage: {
+        ...assistantMsg,
+        citations,
+      },
     };
-    this.messages.set(assistantMsg.id, assistantMsg);
-
-    return { userMessage: userMsg, assistantMessage: assistantMsg };
   }
 
+  public async updateMessageFeedback(
+    messageId: string,
+    feedback: 'up' | 'down' | null,
+    feedbackNotes?: string
+  ): Promise<Message | null> {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('messages')
+      .update({
+        feedback,
+        feedback_notes: feedbackNotes || null,
+      })
+      .eq('id', messageId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating message feedback:', error);
+      throw error;
+    }
+    return data;
+  }
+
+  // ----------------------------------------------------------------------------
   // Document Management & Indexing
-  public getDocuments(): SOPDocument[] {
-    const list = Array.from(this.documents.values());
-    for (const doc of list) {
-      doc.chunk_count = Array.from(this.chunks.values()).filter(c => c.document_id === doc.id).length;
+  // ----------------------------------------------------------------------------
+
+  public async getDocuments(): Promise<SOPDocument[]> {
+    const supabase = getSupabaseAdmin();
+    const { data: docs, error } = await supabase
+      .from('sop_documents')
+      .select(`
+        id,
+        title,
+        version,
+        storage_path,
+        status,
+        uploaded_by,
+        uploaded_at,
+        profiles!uploaded_by(full_name),
+        sop_chunks(count)
+      `)
+      .order('uploaded_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching documents from Supabase:', error);
+      return [];
     }
-    return list.sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
+
+    return (docs || []).map((d: any) => ({
+      id: d.id,
+      title: d.title,
+      version: d.version,
+      storage_path: d.storage_path,
+      status: d.status,
+      uploaded_by: d.uploaded_by,
+      uploaded_at: d.uploaded_at,
+      uploader_name: d.profiles?.full_name || 'Engineering Operations Desk',
+      chunk_count: d.sop_chunks?.[0]?.count || 0,
+    }));
   }
 
-  public archiveDocument(documentId: string): boolean {
-    const doc = this.documents.get(documentId);
-    if (doc) {
-      doc.status = 'archived';
-      this.documents.set(documentId, doc);
-      return true;
+  public async archiveDocument(documentId: string): Promise<boolean> {
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase
+      .from('sop_documents')
+      .update({ status: 'archived' })
+      .eq('id', documentId);
+
+    if (error) {
+      console.error('Error archiving document in Supabase:', error);
+      throw error;
     }
-    return false;
+    return true;
   }
 
   public async uploadAndIndexSOP(
@@ -547,93 +616,137 @@ Record cell conductance data in shelter site logbook. Mark battery bank maintena
     title: string,
     version: string,
     rawText: string,
-    storagePath: string = 'sops/uploaded_document.pdf',
+    storagePath: string,
     archiveOldVersionId?: string
   ): Promise<{ document: SOPDocument; job: IndexingJob }> {
-    const admin = this.profiles.get(adminUserId);
+    const supabase = getSupabaseAdmin();
 
-    // Archive previous version if requested
+    // 1. If archiving prior version, mark it archived
     if (archiveOldVersionId) {
-      this.archiveDocument(archiveOldVersionId);
+      await supabase
+        .from('sop_documents')
+        .update({ status: 'archived' })
+        .eq('id', archiveOldVersionId);
     }
 
-    const doc: SOPDocument = {
-      id: `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      title,
-      version,
-      storage_path: storagePath,
-      status: 'active',
-      uploaded_by: adminUserId,
-      uploader_name: admin?.full_name || 'Admin',
-      uploaded_at: new Date().toISOString(),
-    };
-    this.documents.set(doc.id, doc);
+    // 2. Insert new document into Supabase
+    const { data: doc, error: docErr } = await supabase
+      .from('sop_documents')
+      .insert({
+        title,
+        version,
+        storage_path: storagePath,
+        status: 'active',
+        uploaded_by: adminUserId,
+      })
+      .select()
+      .single();
 
-    const job: IndexingJob = {
-      id: `job-${Date.now()}`,
-      document_id: doc.id,
-      document_title: doc.title,
-      status: 'processing',
-      error: null,
-      created_at: new Date().toISOString(),
-    };
-    this.indexingJobs.set(job.id, job);
+    if (docErr) {
+      console.error('Error inserting document into Supabase:', docErr);
+      throw docErr;
+    }
 
+    // 3. Create indexing job in Supabase
+    const { data: job, error: jobErr } = await supabase
+      .from('indexing_jobs')
+      .insert({
+        document_id: doc.id,
+        status: 'processing',
+      })
+      .select()
+      .single();
+
+    if (jobErr) {
+      console.error('Error creating indexing job:', jobErr);
+    }
+
+    // 4. Chunk document into semantic sections and compute pgvector embeddings
     try {
-      // Split text into chunks aligned to the document's own section headings
-      const sectionChunks = this.splitBySectionHeadings(rawText);
+      const rawSections = this.splitIntoSections(rawText);
 
-      for (let i = 0; i < sectionChunks.length; i++) {
-        const item = sectionChunks[i];
-        const chunkId = `chk-${doc.id}-${i + 1}`;
-        const vector = await embed(`${item.section_label}\n${item.content}`);
-        this.chunks.set(chunkId, {
-          id: chunkId,
+      for (const s of rawSections) {
+        const embedding = await embed(s.content);
+        const { error: chunkErr } = await supabase.from('sop_chunks').insert({
           document_id: doc.id,
-          section_label: item.section_label,
-          content: item.content,
-          embedding: vector,
-          document_title: doc.title,
-          document_version: doc.version,
+          section_label: s.sectionLabel,
+          content: s.content,
+          embedding,
         });
+
+        if (chunkErr) {
+          console.error('Error inserting chunk into Supabase:', chunkErr);
+        }
       }
 
-      job.status = 'done';
-      job.extracted_sections_count = sectionChunks.length;
-      this.indexingJobs.set(job.id, job);
-    } catch (err: any) {
-      job.status = 'failed';
-      job.error = err?.message || 'Failed to extract sections or compute vector embeddings';
-      this.indexingJobs.set(job.id, job);
-    }
+      // Mark job done
+      if (job) {
+        await supabase
+          .from('indexing_jobs')
+          .update({ status: 'done' })
+          .eq('id', job.id);
+      }
 
-    return { document: doc, job };
+      return {
+        document: {
+          ...doc,
+          chunk_count: rawSections.length,
+        },
+        job: {
+          ...job,
+          status: 'done',
+        },
+      };
+    } catch (err: any) {
+      if (job) {
+        await supabase
+          .from('indexing_jobs')
+          .update({
+            status: 'failed',
+            error: err?.message || String(err),
+          })
+          .eq('id', job.id);
+      }
+      throw err;
+    }
   }
 
-  // Section-aligned text splitter (not fixed-size)
-  public splitBySectionHeadings(rawText: string): Array<{ section_label: string; content: string }> {
-    const lines = rawText.split('\n');
-    const sections: Array<{ section_label: string; content: string }> = [];
+  private splitIntoSections(text: string): Array<{ sectionLabel: string; content: string }> {
+    const lines = text.split('\n');
+    const sections: Array<{ sectionLabel: string; content: string }> = [];
 
-    // Heading patterns: "1. Health & Safety", "Section II: Procedure", "Tools & Materials", "3. Site Cleanup", etc.
-    const headingRegex = /^(?:(?:section|\d+[\.\)]|[A-Z][\.\)]|\bI{1,3}\b|\bIV\b|\bV\b)\s*[:\.\-]?\s*)?(health\s*&?\s*safety|tools?\s*&?\s*materials?(?:\s*required)?|procedure|process|steps?|site\s*cleanup(?:\s*&?\s*handover)?|commissioning|inspection|safety\s*guidelines|technical\s*specifications|specifications|troubleshooting|testing\s*&?\s*verification)/i;
-
-    let currentLabel = 'General Information';
+    let currentLabel = 'General Instructions';
     let currentLines: string[] = [];
 
-    for (const line of lines) {
+    const isHeader = (line: string): string | null => {
       const trimmed = line.trim();
-      const match = trimmed.match(headingRegex);
+      if (!trimmed) return null;
+      if (/^(?:#+\s*)?(?:[0-9]+\.?\s*)?(health\s*(&|and)?\s*safety|safety\s*guidelines|ppe)/i.test(trimmed)) {
+        return 'Health & Safety';
+      }
+      if (/^(?:#+\s*)?(?:[0-9]+\.?\s*)?(tools\s*(&|and)?\s*materials|equipment|required\s*tools)/i.test(trimmed)) {
+        return 'Tools & Materials Required';
+      }
+      if (/^(?:#+\s*)?(?:[0-9]+\.?\s*)?(procedure|steps|installation|execution|workflow)/i.test(trimmed)) {
+        return 'Procedure';
+      }
+      if (/^(?:#+\s*)?(?:[0-9]+\.?\s*)?(site\s*cleanup|cleanup|handover|testing\s*(&|and)?\s*signoff)/i.test(trimmed)) {
+        return 'Site Cleanup & Handover';
+      }
+      return null;
+    };
 
-      if (match && trimmed.length < 80) {
+    for (const line of lines) {
+      const header = isHeader(line);
+      if (header) {
         if (currentLines.length > 0) {
           sections.push({
-            section_label: currentLabel,
+            sectionLabel: currentLabel,
             content: currentLines.join('\n').trim(),
           });
           currentLines = [];
         }
-        currentLabel = trimmed;
+        currentLabel = header;
       } else {
         currentLines.push(line);
       }
@@ -641,149 +754,213 @@ Record cell conductance data in shelter site logbook. Mark battery bank maintena
 
     if (currentLines.length > 0) {
       sections.push({
-        section_label: currentLabel,
+        sectionLabel: currentLabel,
         content: currentLines.join('\n').trim(),
       });
     }
 
-    // Fallback if no specific headings were recognized: chunk by paragraphs
-    if (sections.length === 1 && sections[0].content.length > 1500) {
-      const paras = rawText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-      return paras.map((p, idx) => ({
-        section_label: `Section ${idx + 1}`,
-        content: p.trim(),
-      }));
-    }
-
-    return sections.filter(s => s.content.length > 20);
+    return sections.filter((s) => s.content.length > 15);
   }
 
-  public getIndexingJobs(): IndexingJob[] {
-    return Array.from(this.indexingJobs.values())
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }
+  public async getIndexingJobs(): Promise<IndexingJob[]> {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('indexing_jobs')
+      .select(`
+        id,
+        document_id,
+        status,
+        error,
+        created_at,
+        sop_documents(title, version)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(30);
 
-  // Admin Analytics
-  public getAnalytics(): AnalyticsSummary {
-    const allMessages = Array.from(this.messages.values());
-    const userMessages = allMessages.filter(m => m.role === 'user');
-    const assistantMessages = allMessages.filter(m => m.role === 'assistant');
-
-    const totalQueries = userMessages.length;
-    const helpfulCount = assistantMessages.filter(m => m.feedback === 'up').length;
-    const flaggedCount = assistantMessages.filter(m => m.feedback === 'down').length;
-
-    // Detect messages where AI reported "not found in SOPs"
-    const unansweredMessages = assistantMessages.filter(m =>
-      m.content.toLowerCase().includes('not found in the approved dialog') ||
-      m.content.toLowerCase().includes('සොයාගත නොහැක') ||
-      m.content.toLowerCase().includes('காணப்படவில்லை') ||
-      m.content.toLowerCase().includes('escalate this query immediately')
-    );
-
-    // Group most-asked questions by similarity/keywords
-    const questionFrequencies: Map<string, { count: number; category: string; lastAsked: string }> = new Map();
-
-    for (const umsg of userMessages) {
-      const q = umsg.content.trim();
-      let matchedKey = q;
-      let category = 'Installation & General';
-      const qLower = q.toLowerCase();
-
-      if (qLower.includes('power') || qLower.includes('loss') || qLower.includes('dbm') || qLower.includes('ont')) {
-        matchedKey = 'What is the acceptable optical power level at the ONT?';
-        category = 'FTTH / Fiber';
-      } else if (qLower.includes('ppe') || qLower.includes('safety') || qLower.includes('glove') || qLower.includes('helmet')) {
-        matchedKey = 'What PPE is mandatory before working on utility poles or battery banks?';
-        category = 'Health & Safety';
-      } else if (qLower.includes('earth') || qLower.includes('ground') || qLower.includes('ohm') || qLower.includes('tower')) {
-        matchedKey = 'What is the maximum allowed earth resistance for macro cell sites?';
-        category = 'Grounding & Tower';
-      } else if (qLower.includes('battery') || qLower.includes('float') || qLower.includes('torque') || qLower.includes('dc')) {
-        matchedKey = 'What is the recommended float voltage for 48V battery banks?';
-        category = 'DC Power & Rectifier';
-      }
-
-      const existing = questionFrequencies.get(matchedKey) || { count: 0, category, lastAsked: umsg.created_at };
-      existing.count += 1;
-      if (new Date(umsg.created_at) > new Date(existing.lastAsked)) {
-        existing.lastAsked = umsg.created_at;
-      }
-      questionFrequencies.set(matchedKey, existing);
+    if (error) {
+      console.error('Error fetching indexing jobs:', error);
+      return [];
     }
 
-    const mostAskedQuestions = Array.from(questionFrequencies.entries())
-      .map(([question, data]) => ({ question, ...data }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+    return (data || []).map((j: any) => ({
+      id: j.id,
+      document_id: j.document_id,
+      document_title: j.sop_documents?.title
+        ? `${j.sop_documents.title} (v${j.sop_documents.version})`
+        : 'SOP Document',
+      status: j.status,
+      error: j.error,
+      created_at: j.created_at,
+    }));
+  }
 
-    // Detailed flagged-down messages
-    const flaggedDownMessages = assistantMessages
-      .filter(m => m.feedback === 'down')
-      .map(m => {
-        const chat = this.chats.get(m.chat_id);
-        const officer = chat ? this.profiles.get(chat.user_id) : undefined;
-        // Find preceding user question
-        const chatMsgs = this.getChatMessages(m.chat_id);
-        const idx = chatMsgs.findIndex(cm => cm.id === m.id);
-        const prevUserMsg = idx > 0 ? chatMsgs[idx - 1] : null;
+  // ----------------------------------------------------------------------------
+  // Analytics (Live aggregations directly from Supabase tables)
+  // ----------------------------------------------------------------------------
+
+  public async getAnalytics(): Promise<AnalyticsSummary> {
+    const supabase = getSupabaseAdmin();
+
+    try {
+      // 1. Total user queries
+      const { count: totalQueries } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'user');
+
+      // 2. Feedback upvotes & downvotes
+      const { count: helpfulCount } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('feedback', 'up');
+
+      const { count: flaggedCount } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('feedback', 'down');
+
+      // 3. Active documents count
+      const { count: activeDocumentsCount } = await supabase
+        .from('sop_documents')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active');
+
+      // 4. Flagged down messages with chat/officer details
+      const { data: flaggedRows } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          chat_id,
+          content,
+          citations,
+          feedback_notes,
+          created_at,
+          chats!inner(
+            user_id,
+            profiles!inner(full_name),
+            messages(role, content, created_at)
+          )
+        `)
+        .eq('feedback', 'down')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      const flaggedDownMessages = (flaggedRows || []).map((r: any) => {
+        const chatMsgs = Array.isArray(r.chats?.messages) ? r.chats.messages : [];
+        const userMsg = chatMsgs.find((m: any) => m.role === 'user')?.content || 'Field technical inquiry';
 
         return {
-          id: m.id,
-          chatId: m.chat_id,
-          question: prevUserMsg?.content || 'Officer query',
-          answer: m.content,
-          citations: m.citations,
-          officerName: officer?.full_name || 'Field Officer',
-          createdAt: m.created_at,
-          feedbackNotes: m.feedback_notes || 'Officer indicated procedure lacked specific site clarity or required escalation.',
+          id: r.id,
+          chatId: r.chat_id,
+          question: userMsg,
+          answer: r.content,
+          citations: Array.isArray(r.citations) ? r.citations : [],
+          officerName: r.chats?.profiles?.full_name || 'Field Officer',
+          createdAt: r.created_at,
+          feedbackNotes: r.feedback_notes || undefined,
         };
       });
 
-    // Unanswered queries where AI reported "not found in SOPs"
-    const unansweredQueries = unansweredMessages.map(m => {
-      const chat = this.chats.get(m.chat_id);
-      const officer = chat ? this.profiles.get(chat.user_id) : undefined;
-      const chatMsgs = this.getChatMessages(m.chat_id);
-      const idx = chatMsgs.findIndex(cm => cm.id === m.id);
-      const prevUserMsg = idx > 0 ? chatMsgs[idx - 1] : null;
+      // 5. Most asked topics/questions from user messages
+      const { data: userMessages } = await supabase
+        .from('messages')
+        .select('content, created_at')
+        .eq('role', 'user')
+        .order('created_at', { ascending: false })
+        .limit(30);
 
-      let suggestedDomain = 'FTTH / Fiber';
-      const qLow = (prevUserMsg?.content || '').toLowerCase();
-      if (qLow.includes('microwave') || qLow.includes('radio') || qLow.includes('odu')) {
-        suggestedDomain = 'Microwave Transmission SOP Missing';
-      } else if (qLow.includes('generator') || qLow.includes('genset') || qLow.includes('diesel')) {
-        suggestedDomain = 'Diesel Genset Maintenance SOP Missing';
-      } else if (qLow.includes('5g') || qLow.includes('massive mimo') || qLow.includes('c-band')) {
-        suggestedDomain = '5G Massive MIMO Alignment SOP Missing';
-      } else {
-        suggestedDomain = 'Specialized Field Engineering SOP Needed';
+      const frequencyMap = new Map<string, { count: number; lastAsked: string; category: string }>();
+      for (const m of userMessages || []) {
+        let topic = 'General Procedure';
+        const lower = m.content.toLowerCase();
+        if (lower.includes('fiber') || lower.includes('ont') || lower.includes('splice') || lower.includes('optical')) {
+          topic = 'Optical Fiber & FTTH Splicing';
+        } else if (lower.includes('ground') || lower.includes('earth') || lower.includes('resistance') || lower.includes('tower')) {
+          topic = 'Macro Site Grounding & Earth Resistance';
+        } else if (lower.includes('battery') || lower.includes('voltage') || lower.includes('power') || lower.includes('dc')) {
+          topic = '48V DC Power & Battery Commissioning';
+        } else if (lower.includes('ppe') || lower.includes('safety') || lower.includes('hazard')) {
+          topic = 'Safety & PPE Compliance';
+        }
+
+        const existing = frequencyMap.get(topic);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          frequencyMap.set(topic, {
+            count: 1,
+            lastAsked: m.created_at,
+            category: topic,
+          });
+        }
+      }
+
+      const mostAskedQuestions = Array.from(frequencyMap.entries()).map(([question, stats]) => ({
+        question,
+        count: stats.count,
+        category: stats.category,
+        lastAsked: stats.lastAsked,
+      }));
+
+      // Calculate unanswered / gap queries
+      const { data: escalatedMessages, count: unansweredCount } = await supabase
+        .from('messages')
+        .select('id, content, chat_id, created_at')
+        .eq('role', 'assistant')
+        .ilike('content', '%escalat%')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      const unansweredQueries: AnalyticsSummary['unansweredQueries'] = [];
+      if (escalatedMessages && escalatedMessages.length > 0) {
+        for (const esc of escalatedMessages) {
+          // Find the preceding question in this chat
+          const { data: userMsg } = await supabase
+            .from('messages')
+            .select('content, created_at')
+            .eq('chat_id', esc.chat_id)
+            .eq('role', 'user')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (userMsg) {
+            unansweredQueries.push({
+              id: esc.id,
+              question: userMsg.content,
+              officerName: 'Field Technical Staff',
+              createdAt: userMsg.created_at,
+              language: 'en',
+              suggestedDomain: 'Operations & Site Engineering',
+            });
+          }
+        }
       }
 
       return {
-        id: m.id,
-        question: prevUserMsg?.content || 'Unanswered query',
-        officerName: officer?.full_name || 'Field Officer',
-        createdAt: m.created_at,
-        language: officer?.language || 'en',
-        suggestedDomain,
+        totalQueries: totalQueries || 0,
+        helpfulCount: helpfulCount || 0,
+        flaggedCount: flaggedCount || 0,
+        unansweredCount: unansweredCount || 0,
+        activeDocumentsCount: activeDocumentsCount || 0,
+        mostAskedQuestions: mostAskedQuestions.length > 0 ? mostAskedQuestions : [],
+        flaggedDownMessages,
+        unansweredQueries,
       };
-    });
-
-    const activeDocumentsCount = Array.from(this.documents.values()).filter(d => d.status === 'active').length;
-
-    return {
-      totalQueries,
-      helpfulCount,
-      flaggedCount,
-      unansweredCount: unansweredMessages.length,
-      activeDocumentsCount,
-      mostAskedQuestions,
-      flaggedDownMessages,
-      unansweredQueries,
-    };
+    } catch (err) {
+      console.error('Error aggregating analytics from Supabase:', err);
+      return {
+        totalQueries: 0,
+        helpfulCount: 0,
+        flaggedCount: 0,
+        unansweredCount: 0,
+        activeDocumentsCount: 0,
+        mostAskedQuestions: [],
+        flaggedDownMessages: [],
+        unansweredQueries: [],
+      };
+    }
   }
 }
 
-// Export singleton instance
 export const sopStore = new SOPStore();

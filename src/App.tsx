@@ -1,97 +1,124 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, BookOpen, BarChart3, Database, MessageSquare, X } from 'lucide-react';
+import { Plus, BookOpen, BarChart3, Database, MessageSquare, X, RefreshCw, LogOut } from 'lucide-react';
 import { Header } from './components/Header';
 import { ChatView } from './components/ChatView';
 import { AdminUploadView } from './components/AdminUploadView';
 import { AdminAnalyticsView } from './components/AdminAnalyticsView';
 import { SupabaseSchemaModal } from './components/SupabaseSchemaModal';
+import { LoginScreen } from './components/LoginScreen';
 import { Profile, SupportedLanguage, Chat, SOPDocument } from './types';
 
-const INITIAL_PROFILES: Profile[] = [
-  {
-    id: 'usr-officer-01',
-    role: 'officer',
-    full_name: 'Anura Obeysekera',
-    language: 'en',
-  },
-  {
-    id: 'usr-officer-02',
-    role: 'officer',
-    full_name: 'Nimali Senanayake',
-    language: 'si',
-  },
-  {
-    id: 'usr-admin-01',
-    role: 'admin',
-    full_name: 'Eng. Rohan Jayasuriya',
-    language: 'en',
-  },
-];
-
 export default function App() {
-  const [profiles, setProfiles] = useState<Profile[]>(INITIAL_PROFILES);
-  const [currentProfile, setCurrentProfile] = useState<Profile>(INITIAL_PROFILES[0]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentView, setCurrentView] = useState<'chat' | 'admin-docs' | 'admin-analytics' | 'supabase-schema'>('chat');
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [activeTopic, setActiveTopic] = useState<string>('Earthing Installation SOP');
-  const [docCount, setDocCount] = useState<number>(3);
+  const [activeTopic, setActiveTopic] = useState<string>('Field Operations & SOP Inquiries');
+  const [docCount, setDocCount] = useState<number>(0);
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
+  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
   const [rateLimit, setRateLimit] = useState<{ remaining: number; total: number }>({
-    remaining: 48,
+    remaining: 50,
     total: 50,
   });
 
   const exportPDFHandlerRef = useRef<(() => void) | null>(null);
 
-  // Fetch profiles and active docs from server
-  useEffect(() => {
-    fetch('/api/profiles')
-      .then((res) => res.json())
-      .then((data: Profile[]) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setProfiles(data);
-          const active = data.find((p) => p.id === currentProfile.id) || data[0];
-          setCurrentProfile(active);
-        }
-      })
-      .catch((err) => {
-        console.warn('Using local initial profiles:', err);
-      });
-
-    // Fetch documents count
+  const refreshDocuments = () => {
     fetch('/api/admin/documents')
       .then((res) => res.json())
       .then((docs: SOPDocument[]) => {
         if (Array.isArray(docs)) {
           const activeDocs = docs.filter((d) => d.status === 'active');
-          setDocCount(activeDocs.length || 3);
+          setDocCount(activeDocs.length);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error('Failed to sync document count:', err);
+      });
+  };
+
+  // Check saved session against database on mount
+  useEffect(() => {
+    const savedToken = localStorage.getItem('dialog_sop_token');
+
+    if (savedToken) {
+      fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: savedToken }),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error('Session expired');
+          return res.json();
+        })
+        .then((data) => {
+          if (data.profile) {
+            setCurrentProfile(data.profile);
+            setProfiles([data.profile]);
+            setIsAuthenticated(true);
+            fetchChats(data.profile.id);
+            refreshDocuments();
+          } else {
+            throw new Error('No profile data returned');
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem('dialog_sop_token');
+          localStorage.removeItem('dialog_sop_user');
+          setIsAuthenticated(false);
+        })
+        .finally(() => {
+          setIsLoadingInitial(false);
+        });
+    } else {
+      setIsAuthenticated(false);
+      setIsLoadingInitial(false);
+    }
   }, []);
 
-  // Fetch chats whenever current profile changes
+  // Fetch chats and check rate limits whenever current profile changes
   useEffect(() => {
-    fetchChats();
+    if (!currentProfile) return;
+    fetchChats(currentProfile.id);
 
-    // Check rate limit for current profile
     fetch(`/api/rate-limit?userId=${currentProfile.id}`)
       .then((res) => res.json())
       .then((status) => {
-        if (status && status.limit) {
+        if (status && status.limit !== undefined) {
           setRateLimit({
-            remaining: Math.max(0, status.limit - status.used),
+            remaining: Math.max(0, status.limit - (status.used || 0)),
             total: status.limit,
           });
         }
       })
       .catch(() => {});
-  }, [currentProfile.id]);
+  }, [currentProfile?.id]);
 
-  const fetchChats = async () => {
+  const handleLoginSuccess = (profile: Profile, token: string) => {
+    setCurrentProfile(profile);
+    setProfiles([profile]);
+    setIsAuthenticated(true);
+    fetchChats(profile.id);
+    refreshDocuments();
+  };
+
+  const handleLogout = async () => {
     try {
-      const res = await fetch(`/api/chats?userId=${currentProfile.id}`);
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {}
+    localStorage.removeItem('dialog_sop_token');
+    localStorage.removeItem('dialog_sop_user');
+    setCurrentProfile(null);
+    setIsAuthenticated(false);
+  };
+
+  const fetchChats = async (userId = currentProfile?.id) => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`/api/chats?userId=${userId}`);
       if (res.ok) {
         const data: Chat[] = await res.json();
         setChats(data);
@@ -99,7 +126,7 @@ export default function App() {
           setCurrentChatId(data[0].id);
           setActiveTopic(data[0].title);
         } else {
-          handleCreateNewChat();
+          handleCreateNewChat(userId);
         }
       }
     } catch (err) {
@@ -107,12 +134,13 @@ export default function App() {
     }
   };
 
-  const handleCreateNewChat = async (): Promise<string | undefined> => {
+  const handleCreateNewChat = async (userId = currentProfile?.id): Promise<string | undefined> => {
+    if (!userId) return undefined;
     try {
       const res = await fetch('/api/chats', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentProfile.id, title: 'New SOP Consultation' }),
+        body: JSON.stringify({ userId, title: 'New SOP Consultation' }),
       });
       if (res.ok) {
         const newChat: Chat = await res.json();
@@ -130,6 +158,7 @@ export default function App() {
   };
 
   const handleLanguageChange = async (newLanguage: SupportedLanguage) => {
+    if (!currentProfile) return;
     const updated = { ...currentProfile, language: newLanguage };
     setCurrentProfile(updated);
     setProfiles((prev) => prev.map((p) => (p.id === currentProfile.id ? updated : p)));
@@ -156,6 +185,27 @@ export default function App() {
     setRateLimit({ remaining, total });
   };
 
+  if (isLoadingInitial) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-slate-950 text-white flex-col gap-4">
+        <div className="w-12 h-12 bg-red-600 rounded flex items-center justify-center font-bold text-white italic text-2xl shadow-lg animate-pulse">
+          D
+        </div>
+        <div className="text-center space-y-1">
+          <p className="text-sm font-bold tracking-wider uppercase text-slate-200">Dialog SOP Assistant</p>
+          <p className="text-xs text-slate-400 flex items-center gap-2 justify-center">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-red-500" />
+            <span>Verifying database session...</span>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !currentProfile) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
   // Derive initials for avatar
   const nameParts = currentProfile.full_name.split(' ');
   const initials =
@@ -163,10 +213,7 @@ export default function App() {
       ? `${nameParts[0].charAt(0)}${nameParts[1].charAt(0)}`.toUpperCase()
       : currentProfile.full_name.substring(0, 2).toUpperCase();
 
-  const roleTitle =
-    currentProfile.role === 'admin'
-      ? 'QA Admin / Operations'
-      : 'Senior Field Engineer';
+  const roleTitle = 'Master Administrator';
 
   return (
     <div className="flex h-screen w-full font-sans bg-gray-50 text-slate-800 overflow-hidden">
@@ -178,7 +225,7 @@ export default function App() {
         />
       )}
 
-      {/* Left Sidebar (Professional Polish Layout) */}
+      {/* Left Sidebar */}
       <aside
         className={`w-72 bg-slate-900 flex flex-col border-r border-slate-800 text-slate-300 shrink-0 fixed md:static inset-y-0 left-0 z-40 transition-transform duration-200 ease-in-out ${
           sidebarMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
@@ -216,7 +263,7 @@ export default function App() {
                 Recent Chats
               </label>
               <button
-                onClick={handleCreateNewChat}
+                onClick={() => handleCreateNewChat()}
                 className="text-[11px] font-bold text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
                 title="Start new SOP inquiry"
               >
@@ -260,7 +307,7 @@ export default function App() {
           {/* Admin Controls / Navigation */}
           <div className="pt-3 border-t border-slate-800/80">
             <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 px-2">
-              Admin Controls
+              System Controls
             </label>
             <div className="mt-2 space-y-1 text-sm">
               {/* Field Assistant Link */}
@@ -376,22 +423,24 @@ export default function App() {
             </button>
           </div>
 
-          <div
-            onClick={() => {
-              const nextIdx =
-                (profiles.findIndex((p) => p.id === currentProfile.id) + 1) % profiles.length;
-              handleProfileChange(profiles[nextIdx]);
-            }}
-            className="mt-4 flex items-center gap-3 px-2 py-1 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors"
-            title="Click to toggle user role"
-          >
-            <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
-              {initials}
+          <div className="mt-4 flex items-center justify-between p-2 rounded-xl bg-slate-950 border border-slate-800">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-amber-600 border border-amber-500 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-xs">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-white truncate">{currentProfile.full_name}</p>
+                <p className="text-[10px] text-amber-400 font-semibold truncate">Master Administrator</p>
+                <p className="text-[9px] text-slate-400 font-mono truncate">{currentProfile.email || 'rizkan6@gmail.com'}</p>
+              </div>
             </div>
-            <div className="flex-1 truncate">
-              <p className="text-xs font-bold text-white truncate">{currentProfile.full_name}</p>
-              <p className="text-[10px] text-slate-400 truncate">{roleTitle}</p>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shrink-0 ml-1"
+              title="Sign out of database"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </aside>
@@ -408,6 +457,7 @@ export default function App() {
           rateLimitRemaining={rateLimit.remaining}
           rateLimitTotal={rateLimit.total}
           activeTopic={activeTopic}
+          onLogout={handleLogout}
           onExportPDF={() => {
             if (exportPDFHandlerRef.current) {
               exportPDFHandlerRef.current();
@@ -438,7 +488,10 @@ export default function App() {
           )}
 
           {currentView === 'admin-docs' && (
-            <AdminUploadView currentProfile={currentProfile} />
+            <AdminUploadView
+              currentProfile={currentProfile}
+              onDocumentsChanged={refreshDocuments}
+            />
           )}
 
           {currentView === 'admin-analytics' && <AdminAnalyticsView />}

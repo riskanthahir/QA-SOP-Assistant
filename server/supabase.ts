@@ -3,21 +3,20 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
 export const isSupabaseConfigured = (): boolean => {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   return Boolean(
-    supabaseUrl &&
-    supabaseServiceKey &&
-    supabaseUrl.startsWith('http') &&
-    !supabaseUrl.includes('xyzcompany')
+    url &&
+    key &&
+    url.startsWith('http') &&
+    !url.includes('xyzcompany')
   );
 };
 
-// Administrative server-side client with full privileges (lazy / safe initialization)
+// Administrative server-side client with full privileges
 export const supabaseAdmin: SupabaseClient | null = isSupabaseConfigured()
-  ? createClient(supabaseUrl!, supabaseServiceKey!, {
+  ? createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -31,3 +30,4 @@ export function getSupabaseAdmin(): SupabaseClient {
   }
   return supabaseAdmin;
 }
+

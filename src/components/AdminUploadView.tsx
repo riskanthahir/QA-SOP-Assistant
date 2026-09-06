@@ -17,6 +17,7 @@ import { SOPDocument, IndexingJob, Profile } from '../types';
 
 interface AdminUploadViewProps {
   currentProfile: Profile;
+  onDocumentsChanged?: () => void;
 }
 
 const SAMPLE_TEMPLATES = [
@@ -77,7 +78,7 @@ Restore ATS to "AUTO" mode and confirm Dialog NOC telemetry receives "Genset Rea
   },
 ];
 
-export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile }) => {
+export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile, onDocumentsChanged }) => {
   const [documents, setDocuments] = useState<SOPDocument[]>([]);
   const [indexingJobs, setIndexingJobs] = useState<IndexingJob[]>([]);
   const [title, setTitle] = useState('');
@@ -214,6 +215,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       setRawText('');
       setArchiveOldVersionId('');
       fetchDocumentsAndJobs();
+      onDocumentsChanged?.();
     } catch (err: any) {
       console.error('Upload failed:', err);
       setUploadError(err.message || 'Error processing SOP document.');
@@ -231,6 +233,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       });
       if (res.ok) {
         fetchDocumentsAndJobs();
+        onDocumentsChanged?.();
       }
     } catch (err) {
       console.error('Failed to archive document:', err);
@@ -279,11 +282,11 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
               </span>
             </div>
 
-            {/* Quick Demo Templates */}
+            {/* Standard Engineering SOP Templates */}
             <div className="mb-4 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
               <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>One-Click Test SOP Templates:</span>
+                <span>Standard Dialog SOP Ingestion Templates:</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {SAMPLE_TEMPLATES.map((tpl, idx) => (

@@ -6,6 +6,7 @@ export interface Profile {
   role: UserRole;
   full_name: string;
   language: SupportedLanguage;
+  email?: string;
   created_at?: string;
   updated_at?: string;
 }
