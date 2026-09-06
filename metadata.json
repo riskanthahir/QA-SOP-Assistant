@@ -1,0 +1,6 @@
+{
+  "name": "SOP Assistant",
+  "description": "Internal SOP assistant for Dialog Axiata PLC field engineering teams with verified procedural retrieval, multilingual support (EN, SI, TA), and safety citations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
