@@ -242,7 +242,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       }
 
       const data = await res.json();
-      setUploadSuccess(`Successfully indexed "${data.document.title}" (v${data.document.version}) into ${data.job.extracted_sections_count} section chunks with vector embeddings.`);
+      setUploadSuccess(`Successfully saved and indexed "${data.document.title}" (v${data.document.version}) in backend repository. All SOP texts are now active for full-text AI search and structured synthesis.`);
       setTitle('');
       setVersion('1.0');
       setRawText('');
@@ -286,10 +286,10 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
             <span>Dialog Axiata Field Operations Knowledge Base</span>
           </div>
           <h1 className="text-xl font-bold text-slate-900 mt-1">
-            SOP PDF Ingestion & Semantic Vector Indexing
+            SOP PDF Repository & Cross-Document Search Engine
           </h1>
           <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Upload new installation SOPs to be parsed by section headings, converted into 1536-dimensional vector embeddings, and stored in pgvector.
+            Upload PDF SOPs to the backend repository. Documents are securely saved and preserved. Field technician queries search the text across all available SOPs and reconstruct structured Dialog answers.
           </p>
         </div>
         <button

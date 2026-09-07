@@ -220,6 +220,19 @@ app.get('/api/admin/documents', async (req, res) => {
   }
 });
 
+app.get('/api/admin/documents/:id/text', async (req, res) => {
+  try {
+    const docText = await sopStore.getDocumentText(req.params.id);
+    if (!docText) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    res.json(docText);
+  } catch (err: any) {
+    console.error('Error fetching document text:', err);
+    res.status(500).json({ error: 'Failed to fetch document text' });
+  }
+});
+
 app.post('/api/admin/documents/archive', async (req, res) => {
   try {
     const { documentId } = req.body;
