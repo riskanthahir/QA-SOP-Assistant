@@ -12,14 +12,6 @@ const PORT = 3000;
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 
-// Ensure requests work whether Vercel passes /api/route or rewrites to /route
-app.use((req, res, next) => {
-  if (req.url && !req.url.startsWith('/api') && !req.url.startsWith('/assets') && !req.url.startsWith('/vite') && !req.url.startsWith('/@')) {
-    req.url = '/api' + req.url;
-  }
-  next();
-});
-
 // Lazy bootstrap for serverless functions
 let bootstrapPromise: Promise<void> | null = null;
 app.use(async (req, res, next) => {
@@ -322,16 +314,8 @@ async function startServer() {
   });
 }
 
-// Only launch the local/container HTTP listener if executed directly and not in a serverless environment
-const isDirectExecution = Boolean(
-  process.argv[1] && (
-    process.argv[1].endsWith('server.ts') ||
-    process.argv[1].endsWith('server.cjs') ||
-    process.argv[1].endsWith('server.js')
-  )
-);
-
-if (isDirectExecution && !process.env.VERCEL) {
+// Launch the HTTP listener when running in development or Cloud Run container
+if (!process.env.VERCEL) {
   startServer();
 }
 
