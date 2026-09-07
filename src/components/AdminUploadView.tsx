@@ -156,7 +156,31 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
     setPreviewSections(sections);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const extractTextClientFallback = async (file: File): Promise<string> => {
+    try {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let latin1 = '';
+      const chunkSize = 65536;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        latin1 += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
+      }
+      const matches: string[] = [];
+      const re = /\(([^()]{2,})\)\s*T[jJ]/g;
+      let match;
+      while ((match = re.exec(latin1)) !== null) {
+        const str = match[1].replace(/\\([()\\])/g, '$1').trim();
+        if (str.length > 2 && !/^[\x00-\x1F\x7F]+$/.test(str)) {
+          matches.push(str);
+        }
+      }
+      return matches.length > 8 ? matches.join(' ') : '';
+    } catch {
+      return '';
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -170,29 +194,59 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
     if (isPdf) {
       setIsParsingPdf(true);
       setUploadError(null);
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const base64 = event.target?.result as string;
-          const resp = await fetch('/api/admin/documents/parse-pdf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ base64Pdf: base64 }),
-          });
+      setUploadSuccess(null);
+
+      const fileSizeMb = (file.size / (1024 * 1024)).toFixed(1);
+
+      try {
+        // Stream raw binary PDF directly to server to avoid Base64 memory overhead
+        const resp = await fetch('/api/admin/documents/parse-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/pdf' },
+          body: file,
+        });
+
+        let extractedText = '';
+
+        if (resp.ok) {
           const resData = await resp.json();
-          if (!resp.ok) {
-            throw new Error(resData.error || 'Failed to extract text from PDF file');
+          extractedText = resData.text || '';
+        } else {
+          // If server returned 413 or error, try client-side extraction first
+          console.warn(`Server returned ${resp.status} for PDF parse. Attempting client fallback...`);
+          const fallbackText = await extractTextClientFallback(file);
+          if (fallbackText && fallbackText.trim().length > 50) {
+            extractedText = fallbackText;
+          } else {
+            let errorMsg = `Server returned status ${resp.status}`;
+            try {
+              const errJson = await resp.json();
+              errorMsg = errJson.error || errorMsg;
+            } catch {
+              const errTxt = await resp.text();
+              if (resp.status === 413) {
+                errorMsg = `The selected PDF (${fileSizeMb} MB) exceeds the upload payload limit. Please compress the PDF, use a smaller file, or paste the SOP text directly into the editor below.`;
+              } else if (errTxt) {
+                errorMsg = errTxt.slice(0, 160);
+              }
+            }
+            throw new Error(errorMsg);
           }
-          setRawText(resData.text);
-          parseSectionsPreview(resData.text);
-        } catch (pdfErr: any) {
-          console.error('PDF extraction failed:', pdfErr);
-          setUploadError(`PDF parse error: ${pdfErr?.message || 'Unable to extract text from PDF'}. You can paste SOP text directly into the editor below.`);
-        } finally {
-          setIsParsingPdf(false);
         }
-      };
-      reader.readAsDataURL(file);
+
+        if (!extractedText.trim()) {
+          throw new Error('No readable text could be found in the PDF. It may be a scanned image or protected. You can paste the text directly.');
+        }
+
+        setRawText(extractedText);
+        parseSectionsPreview(extractedText);
+        setUploadSuccess(`Extracted ${extractedText.length} characters from "${file.name}" (${fileSizeMb} MB). Review sections preview below.`);
+      } catch (pdfErr: any) {
+        console.error('PDF extraction failed:', pdfErr);
+        setUploadError(`PDF parse error: ${pdfErr?.message || 'Unable to extract text from PDF'}. You can paste SOP text directly into the editor below or choose a template.`);
+      } finally {
+        setIsParsingPdf(false);
+      }
       return;
     }
 
@@ -200,6 +254,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
     reader.onload = async (event) => {
       const content = event.target?.result as string;
       setRawText(content);
+      parseSectionsPreview(content);
     };
     reader.readAsText(file);
   };

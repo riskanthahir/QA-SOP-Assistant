@@ -8,6 +8,8 @@ export class SOPStore {
   private inMemorySOPs: Map<string, FullSOPDocument> = new Map();
   private inMemoryJobs: IndexingJob[] = [];
   private inMemoryDocs: Map<string, SOPDocument> = new Map();
+  private inMemoryChats: Map<string, Chat> = new Map();
+  private inMemoryMessages: Map<string, Message[]> = new Map();
 
   constructor() {
     this.initPromise = this.bootstrapDatabase();
@@ -564,78 +566,133 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
   // ----------------------------------------------------------------------------
 
   public async getUserChats(userId: string): Promise<Chat[]> {
-    const supabase = getSupabaseAdmin();
-    const { data: chats, error } = await supabase
-      .from('chats')
-      .select('id, user_id, title, created_at, messages(id, content, created_at)')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+    const memChats = Array.from(this.inMemoryChats.values()).filter((c) => c.user_id === userId);
 
-    if (error) {
-      console.error('Error fetching chats from Supabase:', error);
-      return [];
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = getSupabaseAdmin();
+        const { data: chats, error } = await supabase
+          .from('chats')
+          .select('id, user_id, title, created_at, messages(id, content, created_at)')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+        if (!error && Array.isArray(chats)) {
+          const dbChats: Chat[] = chats.map((c: any) => {
+            const msgs = Array.isArray(c.messages) ? c.messages : [];
+            const lastMsg = msgs.sort(
+              (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            )[0];
+
+            return {
+              id: c.id,
+              user_id: c.user_id,
+              title: c.title,
+              created_at: c.created_at,
+              message_count: msgs.length,
+              last_message: lastMsg?.content
+                ? lastMsg.content.slice(0, 70) + (lastMsg.content.length > 70 ? '...' : '')
+                : undefined,
+            };
+          });
+
+          // Sync into inMemoryChats map
+          for (const ch of dbChats) {
+            this.inMemoryChats.set(ch.id, ch);
+          }
+          return dbChats;
+        } else if (error) {
+          console.warn('[SOPStore] Notice querying chats from Supabase (using memory cache):', error?.message || error);
+        }
+      } catch (err) {
+        console.warn('[SOPStore] Notice fetching chats from Supabase (using memory fallback):', err);
+      }
     }
 
-    return (chats || []).map((c: any) => {
-      const msgs = Array.isArray(c.messages) ? c.messages : [];
-      const lastMsg = msgs.sort(
-        (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      )[0];
-
-      return {
-        id: c.id,
-        user_id: c.user_id,
-        title: c.title,
-        created_at: c.created_at,
-        message_count: msgs.length,
-        last_message: lastMsg?.content
-          ? lastMsg.content.slice(0, 70) + (lastMsg.content.length > 70 ? '...' : '')
-          : undefined,
-      };
-    });
+    return memChats.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
   }
 
   public async createChat(userId: string, title?: string): Promise<Chat> {
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from('chats')
-      .insert({
-        user_id: userId,
-        title: title || 'New SOP Consultation',
-      })
-      .select()
-      .single();
+    const chatId = 'chat-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    const newChat: Chat = {
+      id: chatId,
+      user_id: userId,
+      title: title || 'New SOP Consultation',
+      created_at: new Date().toISOString(),
+      message_count: 0,
+    };
+    this.inMemoryChats.set(chatId, newChat);
 
-    if (error) {
-      console.error('Error creating chat in Supabase:', error);
-      throw error;
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = getSupabaseAdmin();
+        const { data, error } = await supabase
+          .from('chats')
+          .insert({
+            user_id: userId,
+            title: title || 'New SOP Consultation',
+          })
+          .select()
+          .single();
+
+        if (!error && data) {
+          const savedChat: Chat = {
+            id: data.id,
+            user_id: data.user_id,
+            title: data.title,
+            created_at: data.created_at,
+            message_count: 0,
+          };
+          this.inMemoryChats.delete(chatId);
+          this.inMemoryChats.set(data.id, savedChat);
+          return savedChat;
+        } else if (error) {
+          console.warn('[SOPStore] Notice creating chat in Supabase (using local session):', error?.message || error);
+        }
+      } catch (err) {
+        console.warn('[SOPStore] Notice creating chat in Supabase (persisted in memory):', err);
+      }
     }
-    return data;
+
+    return newChat;
   }
 
   public async getChatMessages(chatId: string): Promise<Message[]> {
-    const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('chat_id', chatId)
-      .order('created_at', { ascending: true });
+    const memMsgs = this.inMemoryMessages.get(chatId) || [];
 
-    if (error) {
-      console.error('Error fetching messages from Supabase:', error);
-      return [];
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = getSupabaseAdmin();
+        const { data, error } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('chat_id', chatId)
+          .order('created_at', { ascending: true });
+
+        if (!error && Array.isArray(data)) {
+          const formatted: Message[] = data.map((m: any) => ({
+            id: m.id,
+            chat_id: m.chat_id,
+            role: m.role,
+            content: m.content,
+            citations: Array.isArray(m.citations) ? m.citations : [],
+            feedback: m.feedback,
+            feedback_notes: m.feedback_notes,
+            created_at: m.created_at,
+          }));
+          this.inMemoryMessages.set(chatId, formatted);
+          return formatted;
+        } else if (error) {
+          console.warn('[SOPStore] Notice fetching messages from Supabase (using memory cache):', error?.message || error);
+        }
+      } catch (err) {
+        console.warn('[SOPStore] Notice fetching messages from Supabase (using memory fallback):', err);
+      }
     }
 
-    return (data || []).map((m: any) => ({
-      id: m.id,
-      chat_id: m.chat_id,
-      role: m.role,
-      content: m.content,
-      citations: Array.isArray(m.citations) ? m.citations : [],
-      feedback: m.feedback,
-      feedback_notes: m.feedback_notes,
-      created_at: m.created_at,
-    }));
+    return memMsgs;
   }
 
   public async handleUserQuestion(
@@ -739,6 +796,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
         console.warn('[SOPStore] Error saving messages to Supabase:', dbErr);
       }
     }
+
+    // Keep in-memory messages synchronized
+    const existingMsgs = this.inMemoryMessages.get(chatId) || [];
+    existingMsgs.push(userMessage, assistantMessage);
+    this.inMemoryMessages.set(chatId, existingMsgs);
 
     return {
       userMessage,

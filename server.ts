@@ -9,8 +9,9 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json({ limit: '25mb' }));
-app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+app.use(express.raw({ type: ['application/pdf', 'application/octet-stream'], limit: '100mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Lazy bootstrap for serverless functions
 let bootstrapPromise: Promise<void> | null = null;
@@ -128,10 +129,10 @@ app.get('/api/chats', async (req, res) => {
       return res.json([]);
     }
     const chats = await sopStore.getUserChats(userId);
-    res.json(chats);
+    res.json(chats || []);
   } catch (err: any) {
-    console.error('Error fetching chats:', err);
-    res.status(500).json({ error: 'Failed to fetch chats' });
+    console.error('Error fetching chats (returning empty array):', err);
+    res.json([]);
   }
 });
 
@@ -144,18 +145,24 @@ app.post('/api/chats', async (req, res) => {
     const chat = await sopStore.createChat(userId, title);
     res.json(chat);
   } catch (err: any) {
-    console.error('Error creating chat:', err);
-    res.status(500).json({ error: 'Failed to create chat' });
+    console.error('Error creating chat (fallback):', err);
+    res.json({
+      id: 'chat-' + Date.now(),
+      user_id: req.body?.userId || 'default',
+      title: req.body?.title || 'New SOP Consultation',
+      created_at: new Date().toISOString(),
+      message_count: 0,
+    });
   }
 });
 
 app.get('/api/chats/:id/messages', async (req, res) => {
   try {
     const messages = await sopStore.getChatMessages(req.params.id);
-    res.json(messages);
+    res.json(messages || []);
   } catch (err: any) {
-    console.error('Error fetching chat messages:', err);
-    res.status(500).json({ error: 'Failed to fetch chat messages' });
+    console.error('Error fetching chat messages (returning empty array):', err);
+    res.json([]);
   }
 });
 
@@ -251,6 +258,7 @@ app.post('/api/admin/documents/archive', async (req, res) => {
  * Robust server-side PDF text extractor supporting both pdf-parse v1 and v2 class instances
  */
 async function parsePdfBuffer(buffer: Buffer): Promise<string> {
+  // 1. Try pdf-parse v2 and v1
   try {
     const pdfParseMod: any = await import('pdf-parse');
     if (pdfParseMod.PDFParse) {
@@ -259,35 +267,64 @@ async function parsePdfBuffer(buffer: Buffer): Promise<string> {
         await parser.load();
       }
       const res = await parser.getText();
-      if (res && typeof res.text === 'string') return res.text;
+      if (res && typeof res.text === 'string' && res.text.trim()) return res.text;
     }
     const legacyFn = pdfParseMod.default || pdfParseMod;
     if (typeof legacyFn === 'function') {
       const parsed = await legacyFn(buffer);
-      if (parsed && typeof parsed.text === 'string') return parsed.text;
+      if (parsed && typeof parsed.text === 'string' && parsed.text.trim()) return parsed.text;
     }
   } catch (err) {
-    console.warn('[PDF] Error extracting text from PDF buffer:', err);
+    console.warn('[PDF] Primary pdf-parse extraction warning:', err);
   }
+
+  // 2. Fallback: text stream pattern scan for uncompressed PDF text blocks
+  try {
+    const raw = buffer.toString('latin1');
+    const textMatches: string[] = [];
+    const re = /\(([^()]{2,})\)\s*T[jJ]/g;
+    let match;
+    while ((match = re.exec(raw)) !== null) {
+      const str = match[1].replace(/\\([()\\])/g, '$1').trim();
+      if (str.length > 2 && !/^[\x00-\x1F\x7F]+$/.test(str)) {
+        textMatches.push(str);
+      }
+    }
+    if (textMatches.length > 8) {
+      return textMatches.join(' ');
+    }
+  } catch (fallbackErr) {
+    console.warn('[PDF] Fallback text stream scan warning:', fallbackErr);
+  }
+
   return '';
 }
 
-// PDF Pre-extraction endpoint for admin upload live preview
+// PDF Pre-extraction endpoint for admin upload live preview (supports both raw binary & base64)
 app.post('/api/admin/documents/parse-pdf', async (req, res) => {
   try {
-    const { base64Pdf } = req.body;
-    if (!base64Pdf) {
-      return res.status(400).json({ error: 'Missing base64Pdf payload' });
+    let buffer: Buffer | null = null;
+
+    if (Buffer.isBuffer(req.body)) {
+      buffer = req.body;
+    } else if (req.body && typeof req.body.base64Pdf === 'string') {
+      const cleanBase64 = req.body.base64Pdf.replace(/^data:application\/pdf;base64,/, '');
+      buffer = Buffer.from(cleanBase64, 'base64');
     }
-    const cleanBase64 = base64Pdf.replace(/^data:application\/pdf;base64,/, '');
-    const buffer = Buffer.from(cleanBase64, 'base64');
+
+    if (!buffer || buffer.length === 0) {
+      return res.status(400).json({ error: 'Missing or empty PDF payload. Please select a valid PDF file.' });
+    }
+
     const text = await parsePdfBuffer(buffer);
 
     if (!text || !text.trim()) {
-      return res.status(422).json({ error: 'Could not extract readable text from the provided PDF file.' });
+      return res.status(422).json({
+        error: 'Could not extract readable text from the provided PDF file. The document may be scanned as raster images or password-protected. You can paste the SOP text directly into the editor.',
+      });
     }
 
-    res.json({ text });
+    res.json({ text, sizeBytes: buffer.length });
   } catch (err: any) {
     console.error('Error parsing PDF:', err);
     res.status(500).json({ error: 'Server error processing PDF: ' + (err?.message || err) });
