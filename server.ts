@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { sopStore } from './server/sopStore.js';
 import { getActiveAIProvider } from './lib/ai.js';
 import dotenv from 'dotenv';
@@ -348,6 +347,7 @@ async function startServer() {
   await sopStore.ensureInitialized();
 
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -367,7 +367,8 @@ async function startServer() {
 }
 
 // Launch the HTTP listener when running in development or Cloud Run container
-if (!process.env.VERCEL) {
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NETLIFY);
+if (!isServerless) {
   startServer();
 }
 

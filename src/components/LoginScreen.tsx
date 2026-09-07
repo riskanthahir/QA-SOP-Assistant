@@ -25,10 +25,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         body: JSON.stringify({ email: email.trim(), password }),
       });
 
-      const data = await response.json();
+      let data: any = null;
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          response.status === 500
+            ? 'Vercel server returned 500. Please check serverless deployment logs and verify your Supabase environment variables.'
+            : `Server returned non-JSON response (${response.status}): ${text.slice(0, 100)}`
+        );
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Authentication failed. Please verify credentials.');
+        throw new Error(data?.error || `Authentication failed (${response.status}). Please verify credentials.`);
       }
 
       if (data.profile && data.token) {
