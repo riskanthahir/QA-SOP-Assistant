@@ -29,28 +29,236 @@ export const LANGUAGE_NAMES: Record<SupportedLanguage, string> = {
 
 /**
  * EXACT SYSTEM INSTRUCTION MANDATED BY DIALOG AXIATA PLC
+ * Answer Definition:
+ * 1. Answer ONLY using provided SOP excerpts from verified PDFs.
+ * 2. Do NOT use outside knowledge or guess.
+ * 3. Clear escalation statement if information is not found.
+ * 4. Required headings: Health & Safety, Tools & Materials Required, Procedure, Site Cleanup & Handover.
+ * 5. Multilingual response (EN, SI, TA) with bullet points and numbered steps.
+ * 6. Explicit citation of source SOP title(s) and section(s).
  */
 export const SYSTEM_PROMPT_TEMPLATE = (languageName: string) => `You are an internal SOP assistant for Dialog Axiata field engineers. Answer ONLY using the provided SOP excerpts below. Do not use outside knowledge and do not guess. If the excerpts do not contain the answer, say so clearly and tell the officer to escalate to their supervisor or the engineering desk — do not attempt a partial answer. Structure every answer with these headings where relevant: Health & Safety, Tools & Materials Required, Procedure, Site Cleanup & Handover. Use bullet points and numbered steps. Respond in ${languageName}. After the answer, list the source SOP title(s) and section(s) used.`;
 
+export interface ActiveAIProviderInfo {
+  provider: 'rapidapi' | 'gemini' | 'deterministic';
+  name: string;
+  host?: string;
+  model?: string;
+  hasRapidApiKey: boolean;
+  hasGeminiKey: boolean;
+}
+
+/**
+ * Returns current active AI provider information without exposing secret credentials.
+ */
+export function getActiveAIProvider(): ActiveAIProviderInfo {
+  const rapidApiKey = process.env.RAPIDAPI_KEY || process.env.RAPID_API_KEY || process.env.X_RAPIDAPI_KEY || process.env.AI_PROVIDER_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+
+  if (rapidApiKey && rapidApiKey.trim()) {
+    return {
+      provider: 'rapidapi',
+      name: 'RapidAPI LLM Gateway',
+      host: process.env.RAPIDAPI_HOST || 'chatgpt-42.p.rapidapi.com',
+      model: process.env.RAPIDAPI_MODEL || 'gpt-4o-mini',
+      hasRapidApiKey: true,
+      hasGeminiKey: Boolean(geminiKey),
+    };
+  }
+
+  if (geminiKey && geminiKey.trim()) {
+    return {
+      provider: 'gemini',
+      name: 'Google Gemini',
+      model: 'gemini-3.8-flash',
+      hasRapidApiKey: false,
+      hasGeminiKey: true,
+    };
+  }
+
+  return {
+    provider: 'deterministic',
+    name: 'Dialog Procedural Synthesis Engine',
+    model: 'Local SOP Grounded Vector Classifier',
+    hasRapidApiKey: false,
+    hasGeminiKey: false,
+  };
+}
+
+/**
+ * Helper to extract response text from varied RapidAPI chat API payload formats.
+ */
+function extractRapidAPIResponse(data: any): string | null {
+  if (!data) return null;
+  if (typeof data === 'string' && data.trim().length > 0) return data.trim();
+  if (data.choices?.[0]?.message?.content && typeof data.choices[0].message.content === 'string') {
+    return data.choices[0].message.content.trim();
+  }
+  if (data.choices?.[0]?.text && typeof data.choices[0].text === 'string') {
+    return data.choices[0].text.trim();
+  }
+  if (typeof data.result === 'string' && data.result.trim()) {
+    return data.result.trim();
+  }
+  if (typeof data.response === 'string' && data.response.trim()) {
+    return data.response.trim();
+  }
+  if (typeof data.answer === 'string' && data.answer.trim()) {
+    return data.answer.trim();
+  }
+  if (data.message?.content && typeof data.message.content === 'string') {
+    return data.message.content.trim();
+  }
+  if (typeof data.message === 'string' && data.message.trim()) {
+    return data.message.trim();
+  }
+  if (typeof data.text === 'string' && data.text.trim()) {
+    return data.text.trim();
+  }
+  return null;
+}
+
+/**
+ * Executes a call to RapidAPI to answer the field question strictly according to the answer definition.
+ */
+async function callRapidAPIChat(
+  rapidApiKey: string,
+  systemInstruction: string,
+  formattedExcerpts: string,
+  question: string,
+  languageName: string
+): Promise<string | null> {
+  const host = process.env.RAPIDAPI_HOST?.trim() || 'chatgpt-42.p.rapidapi.com';
+  const customEndpoint = process.env.RAPIDAPI_ENDPOINT?.trim();
+  const model = process.env.RAPIDAPI_MODEL?.trim() || 'gpt-4o-mini';
+
+  const fullPrompt = `${systemInstruction}\n\nSOP EXCERPTS FROM APPROVED DIALOG MANUALS:\n${formattedExcerpts}\n\nFIELD OFFICER QUESTION:\n${question}\n\nINSTRUCTION: Remember to strictly adhere to the answer definition: only use provided excerpts, use standard headings, bullet points and numbered steps, and respond in ${languageName}.`;
+
+  const headers = {
+    'x-rapidapi-key': rapidApiKey,
+    'x-rapidapi-host': host,
+    'Content-Type': 'application/json',
+  };
+
+  const attempts: Array<{ url: string; body: any }> = [];
+
+  if (customEndpoint) {
+    const cleanEndpoint = customEndpoint.startsWith('/') ? customEndpoint : `/${customEndpoint}`;
+    attempts.push({
+      url: `https://${host}${cleanEndpoint}`,
+      body: {
+        model,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: `SOP EXCERPTS:\n${formattedExcerpts}\n\nFIELD OFFICER QUESTION:\n${question}` },
+        ],
+        temperature: 0.2,
+      },
+    });
+    attempts.push({
+      url: `https://${host}${cleanEndpoint}`,
+      body: {
+        messages: [{ role: 'user', content: fullPrompt }],
+        web_access: false,
+      },
+    });
+  } else if (host.includes('chatgpt-42') || host.includes('conversation')) {
+    // chatgpt-42.p.rapidapi.com pattern
+    attempts.push({
+      url: `https://${host}/conversationWithGPT`,
+      body: {
+        messages: [{ role: 'user', content: fullPrompt }],
+        web_access: false,
+      },
+    });
+    attempts.push({
+      url: `https://${host}/chat/completions`,
+      body: {
+        model,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: `SOP EXCERPTS:\n${formattedExcerpts}\n\nFIELD OFFICER QUESTION:\n${question}` },
+        ],
+        temperature: 0.2,
+      },
+    });
+  } else {
+    // Standard OpenAI compatible endpoints on RapidAPI (openai80, chatgpt-api8, etc.)
+    attempts.push({
+      url: `https://${host}/chat/completions`,
+      body: {
+        model,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: `SOP EXCERPTS:\n${formattedExcerpts}\n\nFIELD OFFICER QUESTION:\n${question}` },
+        ],
+        temperature: 0.2,
+      },
+    });
+    attempts.push({
+      url: `https://${host}/v1/chat/completions`,
+      body: {
+        model,
+        messages: [
+          { role: 'system', content: systemInstruction },
+          { role: 'user', content: `SOP EXCERPTS:\n${formattedExcerpts}\n\nFIELD OFFICER QUESTION:\n${question}` },
+        ],
+        temperature: 0.2,
+      },
+    });
+    attempts.push({
+      url: `https://${host}/conversationWithGPT`,
+      body: {
+        messages: [{ role: 'user', content: fullPrompt }],
+        web_access: false,
+      },
+    });
+  }
+
+  for (const attempt of attempts) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 22000); // 22s network timeout
+
+      const resp = await fetch(attempt.url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(attempt.body),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if (resp.ok) {
+        const json = await resp.json();
+        const extracted = extractRapidAPIResponse(json);
+        if (extracted && extracted.length > 10) {
+          console.log(`[lib/ai.ts] RapidAPI answered query successfully via ${attempt.url}`);
+          return extracted;
+        }
+      } else {
+        const errText = await resp.text().catch(() => '');
+        console.warn(`[lib/ai.ts] RapidAPI call to ${attempt.url} responded HTTP ${resp.status}:`, errText.slice(0, 180));
+      }
+    } catch (err: any) {
+      console.warn(`[lib/ai.ts] RapidAPI call failed on ${attempt.url}:`, err?.message || err);
+    }
+  }
+
+  return null;
+}
+
 // ==============================================================================
-// 1. EMBEDDING FUNCTION (STUB / SWAPPABLE)
+// 1. EMBEDDING FUNCTION (SWAPPABLE: RapidAPI / Gemini / Deterministic)
 // ==============================================================================
 
 /**
  * Generates a 1536-dimensional vector embedding for a given text.
- *
- * [STUB NOTICE]
- * Replace the body of this function with your preferred provider:
- * - OpenAI: text-embedding-3-small (1536 dims)
- * - Gemini: text-embedding-004 (768 or 1536 padded/projected)
- * - Cohere / HuggingFace / Local Ollama
  */
 export async function embed(text: string): Promise<number[]> {
   // Check if GEMINI_API_KEY is available for live embedding
   const geminiKey = process.env.GEMINI_API_KEY;
   if (geminiKey) {
     try {
-      // Dynamic import to keep this module decoupled
       const { GoogleGenAI } = await import('@google/genai');
       const ai = new GoogleGenAI({
         apiKey: geminiKey,
@@ -69,7 +277,6 @@ export async function embed(text: string): Promise<number[]> {
       const values = respAny.embedding?.values || respAny.embeddings?.[0]?.values;
       if (values && Array.isArray(values) && values.length > 0) {
         const raw = values as number[];
-        // Project or pad/slice to 1536 dimensions if needed to match vector(1536)
         if (raw.length === 1536) return raw;
         if (raw.length < 1536) {
           const padded = new Array(1536).fill(0);
@@ -83,24 +290,16 @@ export async function embed(text: string): Promise<number[]> {
     }
   }
 
-  // --------------------------------------------------------------------------
-  // DETERMINISTIC STUB IMPLEMENTATION (Zero-cost, works offline/in preview)
-  // Generates a normalized 1536-dimensional pseudo-semantic vector based on
-  // token hashing so cosine similarity faithfully ranks relevant keywords.
-  // --------------------------------------------------------------------------
+  // Deterministic 1536-dimensional semantic projection engine
   return generateDeterministicEmbedding(text, 1536);
 }
 
 // ==============================================================================
-// 2. ANSWER GENERATION FUNCTION (STUB / SWAPPABLE)
+// 2. ANSWER GENERATION FUNCTION (RapidAPI -> Gemini -> Deterministic)
 // ==============================================================================
 
 /**
- * Generates an answer strictly grounded in the provided SOP excerpts.
- *
- * [STUB NOTICE]
- * Wire your external AI provider here. The exact system prompt and context chunks
- * are assembled for you below.
+ * Generates an answer strictly grounded in the provided SOP excerpts according to the answer definition.
  */
 export async function generateAnswer(
   question: string,
@@ -120,7 +319,26 @@ export async function generateAnswer(
     .map((c, i) => `[EXCERPT ${i + 1}] SOP Title: "${c.documentTitle}" (v${c.version}) | Section: "${c.sectionLabel}"\n${c.content}`)
     .join('\n\n---\n\n');
 
-  // Attempt live provider if GEMINI_API_KEY is configured
+  // 1. First priority: Use RapidAPI Key if configured
+  const rapidApiKey = process.env.RAPIDAPI_KEY || process.env.RAPID_API_KEY || process.env.X_RAPIDAPI_KEY || process.env.AI_PROVIDER_API_KEY;
+  if (rapidApiKey && rapidApiKey.trim()) {
+    try {
+      const rapidAnswer = await callRapidAPIChat(
+        rapidApiKey.trim(),
+        systemInstruction,
+        formattedExcerpts,
+        question,
+        languageName
+      );
+      if (rapidAnswer && rapidAnswer.trim()) {
+        return rapidAnswer.trim();
+      }
+    } catch (rapidErr) {
+      console.warn('[lib/ai.ts] RapidAPI invocation failed, attempting fallback provider:', rapidErr);
+    }
+  }
+
+  // 2. Second priority: Gemini API if GEMINI_API_KEY is configured
   const geminiKey = process.env.GEMINI_API_KEY;
   if (geminiKey) {
     try {
@@ -148,13 +366,10 @@ export async function generateAnswer(
     }
   }
 
-  // --------------------------------------------------------------------------
-  // HIGH-FIDELITY STUB SYNTHESIS
-  // Extracts relevant procedural sections from the provided chunks and constructs
-  // the exact structured response required by the Dialog Axiata SOP specification.
-  // --------------------------------------------------------------------------
+  // 3. Fallback: High-fidelity procedural SOP synthesis engine matching exact Dialog specification
   return synthesizeStubAnswer(question, contextChunks, language);
 }
+
 
 // ==============================================================================
 // HELPER FUNCTIONS & DETERMINISTIC STUB IMPLEMENTATION

@@ -1,6 +1,15 @@
-import React, { useState } from 'react';
-import { Menu, Radio, Download, ChevronDown, Check, ShieldCheck, User, LogOut, Mail, Database } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Menu, Radio, Download, ChevronDown, Check, ShieldCheck, User, LogOut, Mail, Database, Sparkles, Cpu } from 'lucide-react';
 import { Profile, SupportedLanguage } from '../types';
+
+interface AIStatusData {
+  provider: 'rapidapi' | 'gemini' | 'deterministic';
+  name: string;
+  host?: string;
+  model?: string;
+  hasRapidApiKey?: boolean;
+  hasGeminiKey?: boolean;
+}
 
 interface HeaderProps {
   currentProfile: Profile;
@@ -34,6 +43,16 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout,
 }) => {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [aiStatus, setAiStatus] = useState<AIStatusData | null>(null);
+
+  useEffect(() => {
+    fetch('/api/ai/status')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setAiStatus(data);
+      })
+      .catch(() => {});
+  }, []);
 
   // Derive breadcrumb title based on view and active topic
   let sectionName = 'Operations';
@@ -76,6 +95,37 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right: Synced Badge, Quota, Export PDF, and Profile Switcher */}
       <div className="flex items-center gap-3 shrink-0">
+        {/* Active AI Provider Badge */}
+        {aiStatus && (
+          <div
+            className={`hidden sm:flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all ${
+              aiStatus.provider === 'rapidapi'
+                ? 'text-sky-700 bg-sky-50 border-sky-200'
+                : aiStatus.provider === 'gemini'
+                ? 'text-purple-700 bg-purple-50 border-purple-200'
+                : 'text-slate-600 bg-slate-100 border-slate-200'
+            }`}
+            title={`Active LLM Backend: ${aiStatus.name}${aiStatus.host ? ` (${aiStatus.host})` : ''}`}
+          >
+            {aiStatus.provider === 'rapidapi' ? (
+              <>
+                <Sparkles className="w-3 h-3 text-sky-600 animate-pulse" />
+                <span>RapidAPI: {aiStatus.model || 'LLM Gateway'}</span>
+              </>
+            ) : aiStatus.provider === 'gemini' ? (
+              <>
+                <Sparkles className="w-3 h-3 text-purple-600" />
+                <span>Gemini Flash</span>
+              </>
+            ) : (
+              <>
+                <Cpu className="w-3 h-3 text-slate-500" />
+                <span>SOP Synthesis</span>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Database Synced status badge */}
         <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
           <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>

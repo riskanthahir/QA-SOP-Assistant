@@ -11,7 +11,8 @@ import {
   Layers,
   Sparkles,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 import { SOPDocument, IndexingJob, Profile } from '../types';
 
@@ -86,6 +87,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
   const [rawText, setRawText] = useState('');
   const [archiveOldVersionId, setArchiveOldVersionId] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -161,6 +163,37 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
     // Use filename as default title if not already set
     if (!title) {
       setTitle(file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '));
+    }
+
+    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+
+    if (isPdf) {
+      setIsParsingPdf(true);
+      setUploadError(null);
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const base64 = event.target?.result as string;
+          const resp = await fetch('/api/admin/documents/parse-pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ base64Pdf: base64 }),
+          });
+          const resData = await resp.json();
+          if (!resp.ok) {
+            throw new Error(resData.error || 'Failed to extract text from PDF file');
+          }
+          setRawText(resData.text);
+          parseSectionsPreview(resData.text);
+        } catch (pdfErr: any) {
+          console.error('PDF extraction failed:', pdfErr);
+          setUploadError(`PDF parse error: ${pdfErr?.message || 'Unable to extract text from PDF'}. You can paste SOP text directly into the editor below.`);
+        } finally {
+          setIsParsingPdf(false);
+        }
+      };
+      reader.readAsDataURL(file);
+      return;
     }
 
     const reader = new FileReader();
@@ -361,18 +394,33 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Upload PDF / Text File
                 </label>
-                <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 hover:border-red-500 rounded-xl p-5 cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
-                  <FileText className="w-7 h-7 text-slate-400 mb-1" />
-                  <span className="text-xs text-slate-800 font-bold">
-                    Click to select SOP file (.pdf, .txt, .md)
-                  </span>
-                  <span className="text-[10px] text-slate-500 mt-0.5">
-                    Extracted server-side via section alignment parser
-                  </span>
+                <label className={`flex flex-col items-center justify-center border-2 border-dashed ${isParsingPdf ? 'border-red-400 bg-red-50/50' : 'border-gray-300 hover:border-red-500 bg-slate-50 hover:bg-slate-100'} rounded-xl p-5 cursor-pointer transition-colors`}>
+                  {isParsingPdf ? (
+                    <>
+                      <Loader2 className="w-7 h-7 text-red-600 animate-spin mb-1" />
+                      <span className="text-xs text-red-700 font-bold">
+                        Extracting & analyzing PDF sections...
+                      </span>
+                      <span className="text-[10px] text-red-500 mt-0.5">
+                        Parsing binary PDF streams via server parser
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-7 h-7 text-slate-400 mb-1" />
+                      <span className="text-xs text-slate-800 font-bold">
+                        Click to select SOP file (.pdf, .txt, .md)
+                      </span>
+                      <span className="text-[10px] text-slate-500 mt-0.5">
+                        Native PDF text extraction & automatic section chunking
+                      </span>
+                    </>
+                  )}
                   <input
                     type="file"
                     accept=".pdf,.txt,.md"
                     onChange={handleFileUpload}
+                    disabled={isParsingPdf || isUploading}
                     className="hidden"
                   />
                 </label>

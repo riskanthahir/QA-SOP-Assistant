@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { sopStore } from './server/sopStore.js';
+import { getActiveAIProvider } from './lib/ai.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -37,6 +38,16 @@ app.use(async (req, res, next) => {
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'Dialog SOP Assistant API', timestamp: new Date().toISOString() });
+});
+
+// AI Provider Status (reports active engine: RapidAPI / Gemini / Deterministic)
+app.get('/api/ai/status', (req, res) => {
+  try {
+    const status = getActiveAIProvider();
+    res.json(status);
+  } catch (err: any) {
+    res.status(500).json({ error: 'Failed to retrieve AI provider status' });
+  }
 });
 
 // Authentication (Direct Database Auth with Supabase)
@@ -224,6 +235,53 @@ app.post('/api/admin/documents/archive', async (req, res) => {
   }
 });
 
+/**
+ * Robust server-side PDF text extractor supporting both pdf-parse v1 and v2 class instances
+ */
+async function parsePdfBuffer(buffer: Buffer): Promise<string> {
+  try {
+    const pdfParseMod: any = await import('pdf-parse');
+    if (pdfParseMod.PDFParse) {
+      const parser: any = new pdfParseMod.PDFParse({ data: buffer });
+      if (typeof parser.load === 'function') {
+        await parser.load();
+      }
+      const res = await parser.getText();
+      if (res && typeof res.text === 'string') return res.text;
+    }
+    const legacyFn = pdfParseMod.default || pdfParseMod;
+    if (typeof legacyFn === 'function') {
+      const parsed = await legacyFn(buffer);
+      if (parsed && typeof parsed.text === 'string') return parsed.text;
+    }
+  } catch (err) {
+    console.warn('[PDF] Error extracting text from PDF buffer:', err);
+  }
+  return '';
+}
+
+// PDF Pre-extraction endpoint for admin upload live preview
+app.post('/api/admin/documents/parse-pdf', async (req, res) => {
+  try {
+    const { base64Pdf } = req.body;
+    if (!base64Pdf) {
+      return res.status(400).json({ error: 'Missing base64Pdf payload' });
+    }
+    const cleanBase64 = base64Pdf.replace(/^data:application\/pdf;base64,/, '');
+    const buffer = Buffer.from(cleanBase64, 'base64');
+    const text = await parsePdfBuffer(buffer);
+
+    if (!text || !text.trim()) {
+      return res.status(422).json({ error: 'Could not extract readable text from the provided PDF file.' });
+    }
+
+    res.json({ text });
+  } catch (err: any) {
+    console.error('Error parsing PDF:', err);
+    res.status(500).json({ error: 'Server error processing PDF: ' + (err?.message || err) });
+  }
+});
+
 app.post('/api/admin/documents/upload', async (req, res) => {
   try {
     const { adminUserId, title, version, rawText, archiveOldVersionId, base64Pdf } = req.body;
@@ -234,17 +292,11 @@ app.post('/api/admin/documents/upload', async (req, res) => {
 
     let extractedText = rawText || '';
 
-    // If PDF base64 provided, attempt server-side pdf-parse extraction
-    if (base64Pdf && !extractedText) {
-      try {
-        const pdfParseModule = await import('pdf-parse');
-        const pdfParse = (pdfParseModule as any).default || pdfParseModule;
-        const buffer = Buffer.from(base64Pdf.replace(/^data:application\/pdf;base64,/, ''), 'base64');
-        const parsed = await pdfParse(buffer);
-        extractedText = parsed.text;
-      } catch (pdfErr) {
-        console.warn('pdf-parse failed or not available for binary buffer, using text fallback:', pdfErr);
-      }
+    // If PDF base64 provided, extract text via robust server-side parser
+    if (base64Pdf && (!extractedText || !extractedText.trim())) {
+      const cleanBase64 = base64Pdf.replace(/^data:application\/pdf;base64,/, '');
+      const buffer = Buffer.from(cleanBase64, 'base64');
+      extractedText = await parsePdfBuffer(buffer);
     }
 
     if (!extractedText || !extractedText.trim()) {
