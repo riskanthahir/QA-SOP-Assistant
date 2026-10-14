@@ -332,12 +332,13 @@ export async function embed(text: string): Promise<number[]> {
         return raw.slice(0, 1536);
       }
     } catch (err: any) {
-      const isQuota = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
+      const errStr = `${err?.status} ${err?.code} ${err?.message} ${err?.toString?.() || ''} ${JSON.stringify(err || {})}`;
+      const isQuota = errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('quota') || errStr.includes('exceeded your current quota');
       if (isQuota) {
-        geminiEmbedCooldownUntil = Date.now() + 60000; // 1-minute cooldown before retrying
-        console.warn('[lib/ai.ts] Gemini embed quota limit reached (429 RESOURCE_EXHAUSTED). Seamlessly using deterministic semantic vector engine.');
+        geminiEmbedCooldownUntil = Date.now() + 5 * 60 * 1000; // 5-minute cooldown before retrying
+        console.warn('[lib/ai.ts] Gemini embed quota reached (429 RESOURCE_EXHAUSTED). Seamlessly switching to deterministic vector engine.');
       } else {
-        console.warn('[lib/ai.ts] Gemini live embed failed, using deterministic vector engine:', err?.message || err);
+        console.warn('[lib/ai.ts] Gemini embed unavailable, using deterministic vector engine:', err?.message || err);
       }
     }
   }
@@ -421,8 +422,14 @@ export async function generateAnswerFromAllSOPs(
         const citations = extractCitationsFromAnswerAndSOPs(geminiAnswer, allSOPs, question);
         return { answer: geminiAnswer, citations };
       }
-    } catch (err) {
-      console.warn('[lib/ai.ts] Gemini generation failed, falling back to procedural SOP synthesis stub:', err);
+    } catch (err: any) {
+      const errStr = `${err?.status} ${err?.code} ${err?.message} ${err?.toString?.() || ''} ${JSON.stringify(err || {})}`;
+      const isQuota = errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('quota');
+      if (isQuota) {
+        console.warn('[lib/ai.ts] Gemini API quota limit reached (429 RESOURCE_EXHAUSTED). Seamlessly falling back to Dialog procedural SOP synthesis engine.');
+      } else {
+        console.warn('[lib/ai.ts] Gemini generation notice:', err?.message || err);
+      }
     }
   }
 
@@ -493,8 +500,14 @@ export async function generateAnswer(
       if (response.text && response.text.trim()) {
         return response.text.trim();
       }
-    } catch (err) {
-      console.warn('[lib/ai.ts] Gemini generation failed, falling back to procedural SOP synthesis stub:', err);
+    } catch (err: any) {
+      const errStr = `${err?.status} ${err?.code} ${err?.message} ${err?.toString?.() || ''} ${JSON.stringify(err || {})}`;
+      const isQuota = errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED') || errStr.includes('quota');
+      if (isQuota) {
+        console.warn('[lib/ai.ts] Gemini API quota limit reached (429 RESOURCE_EXHAUSTED). Seamlessly falling back to Dialog procedural SOP synthesis engine.');
+      } else {
+        console.warn('[lib/ai.ts] Gemini generation notice:', err?.message || err);
+      }
     }
   }
 

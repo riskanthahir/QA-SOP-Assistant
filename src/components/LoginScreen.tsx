@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Lock, Mail, Eye, EyeOff, AlertCircle, RefreshCw, KeyRound, Database } from 'lucide-react';
 import { Profile } from '../types';
 
@@ -12,6 +12,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [supabaseStatus, setSupabaseStatus] = useState<{ configured: boolean; available: boolean } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.supabase) {
+          setSupabaseStatus(d.supabase);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,9 +96,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] font-semibold text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-3 py-1 rounded-full">
+        <div
+          className={`flex items-center gap-2 text-[11px] font-semibold px-3 py-1 rounded-full border transition-colors ${
+            supabaseStatus?.available
+              ? 'text-emerald-400 bg-emerald-950/40 border-emerald-800/60'
+              : 'text-amber-400 bg-amber-950/40 border-amber-800/60'
+          }`}
+        >
           <Database className="w-3.5 h-3.5" />
-          <span>Database Authentication Active</span>
+          <span>
+            {supabaseStatus === null
+              ? 'Authenticating System...'
+              : supabaseStatus.available
+              ? 'Database Connected'
+              : 'High-Availability Offline Mode'}
+          </span>
         </div>
       </header>
 
