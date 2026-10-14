@@ -1197,13 +1197,70 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           .eq('id', documentId);
 
         if (error) {
-          console.error('Error archiving document in Supabase:', error);
-          throw error;
+          console.warn('[SOPStore] Notice archiving document in Supabase:', error?.message || error);
         }
       } catch (err) {
         console.warn('[SOPStore] Supabase archive notice:', err);
       }
     }
+    return true;
+  }
+
+  public async restoreDocument(documentId: string): Promise<boolean> {
+    const memDoc = this.inMemoryDocs.get(documentId);
+    if (memDoc) {
+      memDoc.status = 'active';
+      this.inMemoryDocs.set(documentId, memDoc);
+    }
+
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = getSupabaseAdmin();
+        const { error } = await supabase
+          .from('sop_documents')
+          .update({ status: 'active' })
+          .eq('id', documentId);
+
+        if (error) {
+          console.warn('[SOPStore] Notice restoring document in Supabase:', error?.message || error);
+        }
+      } catch (err) {
+        console.warn('[SOPStore] Supabase restore notice:', err);
+      }
+    }
+    return true;
+  }
+
+  public async deleteDocument(documentId: string): Promise<boolean> {
+    // 1. Remove from in-memory stores
+    this.inMemoryDocs.delete(documentId);
+    this.inMemorySOPs.delete(documentId);
+    this.inMemoryJobs = this.inMemoryJobs.filter((j) => j.document_id !== documentId);
+
+    // Also remove any entries keyed by title
+    for (const [key, doc] of this.inMemorySOPs.entries()) {
+      if (doc.id === documentId) {
+        this.inMemorySOPs.delete(key);
+      }
+    }
+
+    // 2. Remove from Supabase if configured
+    if (isSupabaseConfigured()) {
+      try {
+        const supabase = getSupabaseAdmin();
+        // Delete related chunks and indexing jobs first to ensure clean cascade
+        await supabase.from('sop_chunks').delete().eq('document_id', documentId);
+        await supabase.from('indexing_jobs').delete().eq('document_id', documentId);
+        const { error } = await supabase.from('sop_documents').delete().eq('id', documentId);
+        if (error) {
+          console.warn('[SOPStore] Notice deleting document in Supabase:', error?.message || error);
+        }
+      } catch (err) {
+        console.warn('[SOPStore] Supabase delete notice:', err);
+      }
+    }
+
+    console.log(`[SOPStore] Deleted SOP document: ${documentId}`);
     return true;
   }
 

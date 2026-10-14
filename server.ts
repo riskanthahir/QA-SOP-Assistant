@@ -254,6 +254,48 @@ app.post('/api/admin/documents/archive', async (req, res) => {
   }
 });
 
+app.post('/api/admin/documents/restore', async (req, res) => {
+  try {
+    const { documentId } = req.body;
+    if (!documentId) {
+      return res.status(400).json({ error: 'Missing documentId' });
+    }
+    const success = await sopStore.restoreDocument(documentId);
+    res.json({ success });
+  } catch (err: any) {
+    console.error('Error restoring document:', err);
+    res.status(500).json({ error: 'Failed to restore document' });
+  }
+});
+
+app.delete('/api/admin/documents/:id', async (req, res) => {
+  try {
+    const documentId = req.params.id;
+    if (!documentId) {
+      return res.status(400).json({ error: 'Missing documentId parameter' });
+    }
+    const success = await sopStore.deleteDocument(documentId);
+    res.json({ success });
+  } catch (err: any) {
+    console.error('Error deleting document:', err);
+    res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
+app.post('/api/admin/documents/delete', async (req, res) => {
+  try {
+    const { documentId } = req.body;
+    if (!documentId) {
+      return res.status(400).json({ error: 'Missing documentId' });
+    }
+    const success = await sopStore.deleteDocument(documentId);
+    res.json({ success });
+  } catch (err: any) {
+    console.error('Error deleting document:', err);
+    res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
 /**
  * Robust server-side PDF text extractor supporting both pdf-parse v1 and v2 class instances
  */

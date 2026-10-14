@@ -12,9 +12,12 @@ import {
   Sparkles,
   ShieldAlert,
   ArrowRight,
-  Loader2
+  Loader2,
+  Trash2,
+  RotateCcw
 } from 'lucide-react';
 import { SOPDocument, IndexingJob, Profile } from '../types';
+import { extractTextFromPdfClient } from '../utils/pdfExtractor';
 
 interface AdminUploadViewProps {
   currentProfile: Profile;
@@ -90,6 +93,8 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<SOPDocument | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Section splitting preview
   const [previewSections, setPreviewSections] = useState<Array<{ label: string; text: string }>>([]);
@@ -156,30 +161,6 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
     setPreviewSections(sections);
   };
 
-  const extractTextClientFallback = async (file: File): Promise<string> => {
-    try {
-      const buffer = await file.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      let latin1 = '';
-      const chunkSize = 65536;
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        latin1 += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
-      }
-      const matches: string[] = [];
-      const re = /\(([^()]{2,})\)\s*T[jJ]/g;
-      let match;
-      while ((match = re.exec(latin1)) !== null) {
-        const str = match[1].replace(/\\([()\\])/g, '$1').trim();
-        if (str.length > 2 && !/^[\x00-\x1F\x7F]+$/.test(str)) {
-          matches.push(str);
-        }
-      }
-      return matches.length > 8 ? matches.join(' ') : '';
-    } catch {
-      return '';
-    }
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -199,51 +180,60 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       const fileSizeMb = (file.size / (1024 * 1024)).toFixed(1);
 
       try {
-        // Stream raw binary PDF directly to server to avoid Base64 memory overhead
-        const resp = await fetch('/api/admin/documents/parse-pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/pdf' },
-          body: file,
-        });
-
         let extractedText = '';
+        let pageCount = 0;
 
-        if (resp.ok) {
-          const resData = await resp.json();
-          extractedText = resData.text || '';
-        } else {
-          // If server returned 413 or error, try client-side extraction first
-          console.warn(`Server returned ${resp.status} for PDF parse. Attempting client fallback...`);
-          const fallbackText = await extractTextClientFallback(file);
-          if (fallbackText && fallbackText.trim().length > 50) {
-            extractedText = fallbackText;
-          } else {
-            let errorMsg = `Server returned status ${resp.status}`;
-            try {
-              const errJson = await resp.json();
-              errorMsg = errJson.error || errorMsg;
-            } catch {
-              const errTxt = await resp.text();
-              if (resp.status === 413) {
-                errorMsg = `The selected PDF (${fileSizeMb} MB) exceeds the upload payload limit. Please compress the PDF, use a smaller file, or paste the SOP text directly into the editor below.`;
-              } else if (errTxt) {
-                errorMsg = errTxt.slice(0, 160);
+        // 1. Primary: Extract directly in browser (eliminates Vercel 4.5MB payload limit completely!)
+        try {
+          const clientRes = await extractTextFromPdfClient(file);
+          if (clientRes.text && clientRes.text.trim().length > 20) {
+            extractedText = clientRes.text;
+            pageCount = clientRes.pageCount;
+          }
+        } catch (clientErr) {
+          console.warn('[PDF] Client-side extraction notice:', clientErr);
+        }
+
+        // 2. Server fallback only for small files (< 4MB) if client extraction didn't find sufficient text
+        if (!extractedText.trim() && file.size < 4 * 1024 * 1024) {
+          try {
+            const resp = await fetch('/api/admin/documents/parse-pdf', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/pdf' },
+              body: file,
+            });
+
+            // Read response body ONCE as text to prevent "body stream already read"
+            const respBodyText = await resp.text();
+            if (resp.ok) {
+              try {
+                const resData = JSON.parse(respBodyText);
+                extractedText = resData.text || '';
+              } catch {
+                extractedText = respBodyText;
               }
+            } else {
+              console.warn(`Server parse-pdf status ${resp.status}:`, respBodyText.slice(0, 100));
             }
-            throw new Error(errorMsg);
+          } catch (serverErr) {
+            console.warn('[PDF] Server fallback notice:', serverErr);
           }
         }
 
         if (!extractedText.trim()) {
-          throw new Error('No readable text could be found in the PDF. It may be a scanned image or protected. You can paste the text directly.');
+          throw new Error(
+            `Could not extract readable text from "${file.name}" (${fileSizeMb} MB). The PDF may be a scanned image or password-protected. You can paste the SOP text directly into the editor below or select a template.`
+          );
         }
 
         setRawText(extractedText);
         parseSectionsPreview(extractedText);
-        setUploadSuccess(`Extracted ${extractedText.length} characters from "${file.name}" (${fileSizeMb} MB). Review sections preview below.`);
+        setUploadSuccess(
+          `Extracted ${extractedText.length.toLocaleString()} characters${pageCount > 0 ? ` from ${pageCount} pages` : ''} of "${file.name}" (${fileSizeMb} MB). Document is ready to publish.`
+        );
       } catch (pdfErr: any) {
-        console.error('PDF extraction failed:', pdfErr);
-        setUploadError(`PDF parse error: ${pdfErr?.message || 'Unable to extract text from PDF'}. You can paste SOP text directly into the editor below or choose a template.`);
+        console.error('PDF extraction error:', pdfErr);
+        setUploadError(pdfErr?.message || 'Unable to extract text from PDF. You can paste SOP text directly into the editor below.');
       } finally {
         setIsParsingPdf(false);
       }
@@ -255,6 +245,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       const content = event.target?.result as string;
       setRawText(content);
       parseSectionsPreview(content);
+      setUploadSuccess(`Loaded "${file.name}" (${(file.size / 1024).toFixed(1)} KB). Ready to publish.`);
     };
     reader.readAsText(file);
   };
@@ -297,7 +288,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       }
 
       const data = await res.json();
-      setUploadSuccess(`Successfully saved and indexed "${data.document.title}" (v${data.document.version}) in backend repository. All SOP texts are now active for full-text AI search and structured synthesis.`);
+      setUploadSuccess(`Successfully saved and indexed "${data.document.title}" (v${data.document.version}) in backend repository. All SOP texts are active for full-text AI search.`);
       setTitle('');
       setVersion('1.0');
       setRawText('');
@@ -320,11 +311,52 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
         body: JSON.stringify({ documentId: docId }),
       });
       if (res.ok) {
+        setUploadSuccess('Document archived from active retrieval.');
         fetchDocumentsAndJobs();
         onDocumentsChanged?.();
       }
     } catch (err) {
       console.error('Failed to archive document:', err);
+    }
+  };
+
+  const handleRestoreDoc = async (docId: string) => {
+    try {
+      const res = await fetch('/api/admin/documents/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: docId }),
+      });
+      if (res.ok) {
+        setUploadSuccess('Document restored to active SOP repository.');
+        fetchDocumentsAndJobs();
+        onDocumentsChanged?.();
+      }
+    } catch (err) {
+      console.error('Failed to restore document:', err);
+    }
+  };
+
+  const handleDeleteDoc = async (doc: SOPDocument) => {
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/documents/${doc.id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setUploadSuccess(`Successfully deleted "${doc.title}" from backend repository and search index.`);
+        setDeleteConfirmDoc(null);
+        fetchDocumentsAndJobs();
+        onDocumentsChanged?.();
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Failed to delete document');
+      }
+    } catch (err: any) {
+      console.error('Failed to delete document:', err);
+      setUploadError(`Failed to delete document: ${err.message || err}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -640,13 +672,22 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                         <span>Status: <strong className="text-emerald-600 font-bold uppercase">Active</strong></span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleArchiveDoc(doc.id)}
-                      className="p-1.5 rounded-lg bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 transition-colors shrink-0 shadow-xs"
-                      title="Archive document (exclude from future retrieval)"
-                    >
-                      <Archive className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => handleArchiveDoc(doc.id)}
+                        className="p-1.5 rounded-lg bg-white hover:bg-amber-50 text-slate-500 hover:text-amber-600 border border-slate-200 transition-colors shadow-xs"
+                        title="Archive document (exclude from future retrieval)"
+                      >
+                        <Archive className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirmDoc(doc)}
+                        className="p-1.5 rounded-lg bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 transition-colors shadow-xs"
+                        title="Permanently delete SOP from repository"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -664,10 +705,28 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                 {archivedDocs.map((doc) => (
                   <div
                     key={doc.id}
-                    className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 opacity-80 text-xs"
+                    className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 opacity-90 text-xs"
                   >
-                    <div className="font-semibold text-slate-700 truncate">{doc.title}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-slate-700 truncate pr-2">{doc.title}</div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => handleRestoreDoc(doc.id)}
+                          className="p-1 rounded-md bg-white hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 border border-slate-200 transition-colors shadow-xs"
+                          title="Restore document to active search"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirmDoc(doc)}
+                          className="p-1 rounded-md bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 transition-colors shadow-xs"
+                          title="Permanently delete SOP from repository"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1">
                       v{doc.version} • Archived from vector search
                     </div>
                   </div>
@@ -677,6 +736,62 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white border border-gray-200 rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="p-2.5 bg-red-100 rounded-xl">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Delete SOP Document</h3>
+                <p className="text-xs text-slate-500">Permanent repository removal</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 space-y-1">
+              <p className="font-bold">Are you sure you want to delete this SOP?</p>
+              <p className="font-medium text-slate-800 line-clamp-2">
+                "{deleteConfirmDoc.title}" (v{deleteConfirmDoc.version})
+              </p>
+              <p className="text-[11px] text-red-700 mt-1">
+                This will permanently delete this document and all associated text sections and vector chunks from the database and AI search engine.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmDoc(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteDoc(deleteConfirmDoc)}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 shadow-sm"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete SOP Permanently</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

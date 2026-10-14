@@ -295,13 +295,15 @@ async function callRapidAPIChat(
 // 1. EMBEDDING FUNCTION (SWAPPABLE: RapidAPI / Gemini / Deterministic)
 // ==============================================================================
 
+let geminiEmbedCooldownUntil = 0;
+
 /**
  * Generates a 1536-dimensional vector embedding for a given text.
  */
 export async function embed(text: string): Promise<number[]> {
-  // Check if GEMINI_API_KEY is available for live embedding
   const geminiKey = process.env.GEMINI_API_KEY;
-  if (geminiKey) {
+
+  if (geminiKey && Date.now() > geminiEmbedCooldownUntil) {
     try {
       const { GoogleGenAI } = await import('@google/genai');
       const ai = new GoogleGenAI({
@@ -329,8 +331,14 @@ export async function embed(text: string): Promise<number[]> {
         }
         return raw.slice(0, 1536);
       }
-    } catch (err) {
-      console.warn('[lib/ai.ts] Gemini live embed failed or unavailable, using deterministic vector engine:', err);
+    } catch (err: any) {
+      const isQuota = err?.status === 429 || err?.message?.includes('429') || err?.message?.includes('RESOURCE_EXHAUSTED');
+      if (isQuota) {
+        geminiEmbedCooldownUntil = Date.now() + 60000; // 1-minute cooldown before retrying
+        console.warn('[lib/ai.ts] Gemini embed quota limit reached (429 RESOURCE_EXHAUSTED). Seamlessly using deterministic semantic vector engine.');
+      } else {
+        console.warn('[lib/ai.ts] Gemini live embed failed, using deterministic vector engine:', err?.message || err);
+      }
     }
   }
 

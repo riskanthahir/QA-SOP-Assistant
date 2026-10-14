@@ -8,11 +8,13 @@ async function getApp() {
 
   // Try loading bundled server.js (ESM), fallback to dist/server.cjs (CJS), or server.ts
   try {
+    // @ts-ignore
     const mod = await import('../server.js');
     cachedApp = mod.app || mod.default || mod;
     return cachedApp;
   } catch (err1) {
     try {
+      // @ts-ignore
       const cjsMod = await import('../dist/server.cjs');
       cachedApp = cjsMod.app || cjsMod.default || cjsMod;
       return cachedApp;
