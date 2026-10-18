@@ -7,7 +7,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
-  const [email, setEmail] = useState('rizkan6@gmail.com');
+  const [email, setEmail] = useState('rizwanbuss@gmail.com');
   const [password, setPassword] = useState('MasterAdminPassword2026!');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -69,7 +69,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   };
 
   const handleQuickFillMasterAdmin = () => {
-    setEmail('rizkan6@gmail.com');
+    setEmail('rizwanbuss@gmail.com');
     setPassword('MasterAdminPassword2026!');
     setErrorMessage(null);
   };

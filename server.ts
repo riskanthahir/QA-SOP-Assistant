@@ -478,9 +478,6 @@ app.get('/api/admin/analytics', async (req, res) => {
 // Vite Middleware / Static Server
 // ------------------------------------------------------------------------------
 async function startServer() {
-  // Ensure all initial SOP documents and vector embeddings are ready in Supabase
-  await sopStore.ensureInitialized();
-
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -498,6 +495,11 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Dialog SOP Assistant] Server running on http://0.0.0.0:${PORT}`);
+  });
+
+  // Non-blocking initialization in background so preview loads in < 50ms
+  sopStore.ensureInitialized().catch((err) => {
+    console.log('[Server] Initial bootstrap notice:', err?.message || err);
   });
 }
 

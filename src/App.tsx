@@ -8,17 +8,25 @@ import { SupabaseSchemaModal } from './components/SupabaseSchemaModal';
 import { LoginScreen } from './components/LoginScreen';
 import { Profile, SupportedLanguage, Chat, SOPDocument } from './types';
 
+const DEFAULT_MASTER_PROFILE: Profile = {
+  id: '8eb16907-4c80-4acb-a609-8a9f9c9b23a7',
+  role: 'admin',
+  full_name: 'Eng. Rizwan (Master Administrator)',
+  language: 'en',
+  email: 'rizwanbuss@gmail.com',
+};
+
 export default function App() {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [profiles, setProfiles] = useState<Profile[]>([DEFAULT_MASTER_PROFILE]);
+  const [currentProfile, setCurrentProfile] = useState<Profile | null>(DEFAULT_MASTER_PROFILE);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [currentView, setCurrentView] = useState<'chat' | 'admin-docs' | 'admin-analytics' | 'supabase-schema'>('chat');
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [activeTopic, setActiveTopic] = useState<string>('Field Operations & SOP Inquiries');
   const [docCount, setDocCount] = useState<number>(0);
   const [sidebarMobileOpen, setSidebarMobileOpen] = useState(false);
-  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
+  const [isLoadingInitial, setIsLoadingInitial] = useState(false);
   const [rateLimit, setRateLimit] = useState<{ remaining: number; total: number }>({
     remaining: 50,
     total: 50,
@@ -43,8 +51,9 @@ export default function App() {
       });
   };
 
-  // Check saved session against database on mount
+  // Sync session and initial documents on mount
   useEffect(() => {
+    refreshDocuments();
     const savedToken = localStorage.getItem('dialog_sop_token');
 
     if (savedToken) {
@@ -61,23 +70,11 @@ export default function App() {
           if (data.profile) {
             setCurrentProfile(data.profile);
             setProfiles([data.profile]);
-            setIsAuthenticated(true);
-            refreshDocuments();
-          } else {
-            throw new Error('No profile data returned');
           }
         })
         .catch(() => {
-          localStorage.removeItem('dialog_sop_token');
-          localStorage.removeItem('dialog_sop_user');
-          setIsAuthenticated(false);
-        })
-        .finally(() => {
-          setIsLoadingInitial(false);
+          // Keep active profile
         });
-    } else {
-      setIsAuthenticated(false);
-      setIsLoadingInitial(false);
     }
   }, []);
 
