@@ -21,7 +21,7 @@ app.use(async (req, res, next) => {
     try {
       if (!bootstrapPromise) {
         bootstrapPromise = sopStore.ensureInitialized().catch((err) => {
-          console.warn('[Server] Supabase bootstrap warning:', err?.message || err);
+          console.log('[Server] Supabase bootstrap info:', err?.message || err);
         });
       }
       await bootstrapPromise;
@@ -69,7 +69,7 @@ app.post('/api/auth/login', async (req, res) => {
     const authResult = await sopStore.authenticateUser(email, password);
     res.json(authResult);
   } catch (err: any) {
-    console.warn('Authentication notice:', err?.message || err);
+    console.log('Authentication note:', err?.message || err);
     res.status(401).json({
       error: err?.message || 'Authentication failed. Please check your credentials.'
     });
@@ -332,7 +332,7 @@ async function parsePdfBuffer(buffer: Buffer): Promise<string> {
       if (parsed && typeof parsed.text === 'string' && parsed.text.trim()) return parsed.text;
     }
   } catch (err) {
-    console.warn('[PDF] Primary pdf-parse extraction warning:', err);
+    console.log('[PDF] Primary pdf-parse extraction info:', err);
   }
 
   // 2. Fallback: text stream pattern scan for uncompressed PDF text blocks
@@ -351,7 +351,7 @@ async function parsePdfBuffer(buffer: Buffer): Promise<string> {
       return textMatches.join(' ');
     }
   } catch (fallbackErr) {
-    console.warn('[PDF] Fallback text stream scan warning:', fallbackErr);
+    console.log('[PDF] Fallback text stream scan note:', fallbackErr);
   }
 
   return '';

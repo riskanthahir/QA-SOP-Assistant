@@ -26,6 +26,9 @@ export default function App() {
 
   const exportPDFHandlerRef = useRef<(() => void) | null>(null);
 
+  const isFetchingChatsRef = useRef<boolean>(false);
+  const isCreatingChatRef = useRef<boolean>(false);
+
   const refreshDocuments = () => {
     fetch('/api/admin/documents')
       .then((res) => res.json())
@@ -59,7 +62,6 @@ export default function App() {
             setCurrentProfile(data.profile);
             setProfiles([data.profile]);
             setIsAuthenticated(true);
-            fetchChats(data.profile.id);
             refreshDocuments();
           } else {
             throw new Error('No profile data returned');
@@ -101,7 +103,6 @@ export default function App() {
     setCurrentProfile(profile);
     setProfiles([profile]);
     setIsAuthenticated(true);
-    fetchChats(profile.id);
     refreshDocuments();
   };
 
@@ -116,26 +117,43 @@ export default function App() {
   };
 
   const fetchChats = async (userId = currentProfile?.id) => {
-    if (!userId) return;
+    if (!userId || isFetchingChatsRef.current) return;
+    isFetchingChatsRef.current = true;
     try {
       const res = await fetch(`/api/chats?userId=${userId}`);
       if (res.ok) {
         const data: Chat[] = await res.json();
-        setChats(data);
-        if (data.length > 0) {
-          setCurrentChatId(data[0].id);
-          setActiveTopic(data[0].title);
-        } else {
+        const uniqueChats: Chat[] = [];
+        const seenIds = new Set<string>();
+        if (Array.isArray(data)) {
+          for (const c of data) {
+            if (c && c.id && !seenIds.has(c.id)) {
+              seenIds.add(c.id);
+              uniqueChats.push(c);
+            }
+          }
+        }
+        setChats(uniqueChats);
+        if (uniqueChats.length > 0) {
+          setCurrentChatId((prev) => (prev && seenIds.has(prev) ? prev : uniqueChats[0].id));
+          setActiveTopic((prev) => {
+            const found = uniqueChats.find((c) => c.id === currentChatId);
+            return found ? found.title : uniqueChats[0].title;
+          });
+        } else if (!isCreatingChatRef.current) {
           handleCreateNewChat(userId);
         }
       }
     } catch (err) {
       console.error('Failed to fetch chats in App:', err);
+    } finally {
+      isFetchingChatsRef.current = false;
     }
   };
 
   const handleCreateNewChat = async (userId = currentProfile?.id): Promise<string | undefined> => {
-    if (!userId) return undefined;
+    if (!userId || isCreatingChatRef.current) return undefined;
+    isCreatingChatRef.current = true;
     try {
       const res = await fetch('/api/chats', {
         method: 'POST',
@@ -144,7 +162,10 @@ export default function App() {
       });
       if (res.ok) {
         const newChat: Chat = await res.json();
-        setChats((prev) => [newChat, ...prev]);
+        setChats((prev) => {
+          const filtered = prev.filter((c) => c.id !== newChat.id);
+          return [newChat, ...filtered];
+        });
         setCurrentChatId(newChat.id);
         setActiveTopic(newChat.title);
         setCurrentView('chat');
@@ -153,6 +174,8 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to create new chat in App:', err);
+    } finally {
+      isCreatingChatRef.current = false;
     }
     return undefined;
   };
@@ -241,7 +264,7 @@ export default function App() {
               <span className="font-bold text-white tracking-tight uppercase text-sm block">
                 SOP Assistant
               </span>
-              <span className="text-[10px] text-slate-400 font-semibold tracking-wider block">
+              <span className="text-[11px] text-slate-400 font-semibold tracking-wider block">
                 DIALOG AXIATA PLC
               </span>
             </div>
@@ -259,12 +282,12 @@ export default function App() {
           {/* Recent Chats */}
           <div>
             <div className="flex items-center justify-between px-2">
-              <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
                 Recent Chats
               </label>
               <button
                 onClick={() => handleCreateNewChat()}
-                className="text-[11px] font-bold text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
+                className="text-[12px] font-bold text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors"
                 title="Start new SOP inquiry"
               >
                 <Plus className="w-3 h-3" />
@@ -278,35 +301,37 @@ export default function App() {
                   No consultations yet
                 </div>
               ) : (
-                chats.slice(0, 8).map((chat) => {
-                  const isActive = currentView === 'chat' && currentChatId === chat.id;
-                  return (
-                    <div
-                      key={chat.id}
-                      onClick={() => {
-                        setCurrentChatId(chat.id);
-                        setActiveTopic(chat.title);
-                        setCurrentView('chat');
-                        setSidebarMobileOpen(false);
-                      }}
-                      className={`p-2 rounded cursor-pointer text-xs truncate transition-colors ${
-                        isActive
-                          ? 'bg-slate-800 text-white font-semibold border-l-4 border-red-500'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                      }`}
-                      title={chat.title}
-                    >
-                      {chat.title}
-                    </div>
-                  );
-                })
+                Array.from(new Map(chats.map((c) => [c.id, c])).values())
+                  .slice(0, 8)
+                  .map((chat, idx) => {
+                    const isActive = currentView === 'chat' && currentChatId === chat.id;
+                    return (
+                      <div
+                        key={`chat-item-${chat.id}-${idx}`}
+                        onClick={() => {
+                          setCurrentChatId(chat.id);
+                          setActiveTopic(chat.title);
+                          setCurrentView('chat');
+                          setSidebarMobileOpen(false);
+                        }}
+                        className={`p-2 rounded cursor-pointer text-xs truncate transition-colors ${
+                          isActive
+                            ? 'bg-slate-800 text-white font-semibold border-l-4 border-red-500'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                        }`}
+                        title={chat.title}
+                      >
+                        {chat.title}
+                      </div>
+                    );
+                  })
               )}
             </div>
           </div>
 
           {/* Admin Controls / Navigation */}
           <div className="pt-3 border-t border-slate-800/80">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 px-2">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500 px-2">
               System Controls
             </label>
             <div className="mt-2 space-y-1 text-sm">
@@ -344,7 +369,7 @@ export default function App() {
                   <BookOpen className="w-3.5 h-3.5 text-slate-400" />
                   <span>SOP Documents</span>
                 </div>
-                <span className="bg-slate-700 text-slate-300 text-[10px] px-1.5 py-0.5 rounded font-mono">
+                <span className="bg-slate-700 text-slate-300 text-[11px] px-1.5 py-0.5 rounded font-mono">
                   {docCount}
                 </span>
               </div>
@@ -430,8 +455,8 @@ export default function App() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold text-white truncate">{currentProfile.full_name}</p>
-                <p className="text-[10px] text-amber-400 font-semibold truncate">Master Administrator</p>
-                <p className="text-[9px] text-slate-400 font-mono truncate">{currentProfile.email || 'rizkan6@gmail.com'}</p>
+                <p className="text-[11px] text-amber-400 font-semibold truncate">Master Administrator</p>
+                <p className="text-[10px] text-slate-400 font-mono truncate">{currentProfile.email || 'rizkan6@gmail.com'}</p>
               </div>
             </div>
             <button

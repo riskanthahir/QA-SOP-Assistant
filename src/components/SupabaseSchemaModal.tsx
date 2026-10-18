@@ -254,19 +254,19 @@ export const SupabaseSchemaModal: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-700">
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="font-bold text-slate-900 mb-1">1. Supabase Postgres & Storage</div>
-            <p className="text-slate-500 text-[11px] leading-relaxed">
+            <p className="text-slate-500 text-[12px] leading-relaxed">
               Create a Supabase project, execute the 3 migration files in the SQL Editor, and create a private storage bucket named <code className="text-red-600 font-bold">sops</code>.
             </p>
           </div>
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="font-bold text-slate-900 mb-1">2. Vercel Environment Secrets</div>
-            <p className="text-slate-500 text-[11px] leading-relaxed">
+            <p className="text-slate-500 text-[12px] leading-relaxed">
               Add <code className="text-red-600 font-bold">SUPABASE_URL</code>, <code className="text-red-600 font-bold">SUPABASE_SERVICE_ROLE_KEY</code>, and <code className="text-red-600 font-bold">GEMINI_API_KEY</code> to your Vercel project settings.
             </p>
           </div>
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
             <div className="font-bold text-slate-900 mb-1">3. GitHub CI/CD Pipeline</div>
-            <p className="text-slate-500 text-[11px] leading-relaxed">
+            <p className="text-slate-500 text-[12px] leading-relaxed">
               Every push to <code className="text-red-600 font-bold">main</code> triggers automatic linting, test validation, and zero-downtime deployment on Vercel edge networks.
             </p>
           </div>

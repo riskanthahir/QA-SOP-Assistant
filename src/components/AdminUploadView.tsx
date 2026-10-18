@@ -468,8 +468,8 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                   className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 shadow-xs"
                 >
                   <option value="">-- None (Do not archive an existing document) --</option>
-                  {activeDocs.map((d) => (
-                    <option key={d.id} value={d.id}>
+                  {activeDocs.map((d, idx) => (
+                    <option key={`opt-${d.id}-${idx}`} value={d.id}>
                       Archive: {d.title} (Current v{d.version})
                     </option>
                   ))}
@@ -574,18 +574,18 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                   <Layers className="w-4 h-4 text-amber-500" />
                   <span>Section-Aligned Chunking Preview ({previewSections.length} detected chunks)</span>
                 </div>
-                <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                <span className="text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
                   Matches SOP Headings
                 </span>
               </div>
               <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                 {previewSections.map((sec, idx) => (
                   <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-900 mb-1">
+                    <div className="flex items-center justify-between text-[12px] font-bold text-slate-900 mb-1">
                       <span>Chunk {idx + 1}: {sec.label}</span>
-                      <span className="text-[10px] text-slate-500 font-mono">vector(1536)</span>
+                      <span className="text-[11px] text-slate-500 font-mono">vector(1536)</span>
                     </div>
-                    <div className="text-[11px] text-slate-600 line-clamp-3 font-mono leading-relaxed">
+                    <div className="text-[12px] text-slate-600 line-clamp-3 font-mono leading-relaxed">
                       {sec.text}
                     </div>
                   </div>
@@ -610,9 +610,9 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                   No indexing jobs recorded
                 </div>
               ) : (
-                indexingJobs.map((job) => (
+                indexingJobs.map((job, idx) => (
                   <div
-                    key={job.id}
+                    key={`job-${job.id}-${idx}`}
                     className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs"
                   >
                     <div className="flex items-center justify-between">
@@ -620,7 +620,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                         {job.document_title || job.document_id}
                       </div>
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase ${
                           job.status === 'done'
                             ? 'bg-emerald-100 text-emerald-800'
                             : job.status === 'processing'
@@ -631,12 +631,12 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                         {job.status}
                       </span>
                     </div>
-                    <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
+                    <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
                       <span>Sections: {job.extracted_sections_count ?? 'N/A'}</span>
                       <span>{new Date(job.created_at).toLocaleTimeString()}</span>
                     </div>
                     {job.error && (
-                      <div className="mt-1 text-[10px] text-red-700 bg-red-50 p-1.5 rounded border border-red-200">
+                      <div className="mt-1 text-[11px] text-red-700 bg-red-50 p-1.5 rounded border border-red-200">
                         Error: {job.error}
                       </div>
                     )}
@@ -654,9 +654,9 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
             </h2>
 
             <div className="space-y-3">
-              {activeDocs.map((doc) => (
+              {activeDocs.map((doc, idx) => (
                 <div
-                  key={doc.id}
+                  key={`doc-act-${doc.id}-${idx}`}
                   className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -664,7 +664,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                       <div className="font-bold text-xs text-slate-900 leading-snug">
                         {doc.title}
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-1">
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
                         <span className="font-mono font-bold text-red-600">v{doc.version}</span>
                         <span>•</span>
                         <span>{doc.chunk_count || 4} Section Chunks</span>
@@ -702,9 +702,9 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                 <span>Archived SOPs (Audit Trail)</span>
               </h2>
               <div className="space-y-2">
-                {archivedDocs.map((doc) => (
+                {archivedDocs.map((doc, idx) => (
                   <div
-                    key={doc.id}
+                    key={`doc-arch-${doc.id}-${idx}`}
                     className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 opacity-90 text-xs"
                   >
                     <div className="flex items-center justify-between">
@@ -726,7 +726,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                         </button>
                       </div>
                     </div>
-                    <div className="text-[10px] text-slate-500 mt-1">
+                    <div className="text-[11px] text-slate-500 mt-1">
                       v{doc.version} • Archived from vector search
                     </div>
                   </div>
@@ -756,7 +756,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
               <p className="font-medium text-slate-800 line-clamp-2">
                 "{deleteConfirmDoc.title}" (v{deleteConfirmDoc.version})
               </p>
-              <p className="text-[11px] text-red-700 mt-1">
+              <p className="text-[12px] text-red-700 mt-1">
                 This will permanently delete this document and all associated text sections and vector chunks from the database and AI search engine.
               </p>
             </div>

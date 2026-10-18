@@ -95,7 +95,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const res = await fetch(`/api/chats/${chatId}/messages`);
       if (res.ok) {
         const data: Message[] = await res.json();
-        setMessages(data);
+        const uniqueMessages: Message[] = [];
+        const seenMsgIds = new Set<string>();
+        if (Array.isArray(data)) {
+          for (const m of data) {
+            if (m && m.id && !seenMsgIds.has(m.id)) {
+              seenMsgIds.add(m.id);
+              uniqueMessages.push(m);
+            }
+          }
+        }
+        setMessages(uniqueMessages);
 
         // Update active topic if chat has title
         const active = chats.find((c) => c.id === chatId);
@@ -172,8 +182,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
       } = await res.json();
 
       setMessages((prev) => {
-        const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
-        return [...filtered, data.userMessage, data.assistantMessage];
+        const withoutOptimistic = prev.filter((m) => m.id !== tempUserMsg.id);
+        const incomingIds = new Set([data.userMessage.id, data.assistantMessage.id]);
+        const cleaned = withoutOptimistic.filter((m) => !incomingIds.has(m.id));
+        return [...cleaned, data.userMessage, data.assistantMessage];
       });
 
       if (data.rateLimit && onRateLimitUpdate) {
@@ -247,7 +259,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
               {/* Quick Field Prompt Chips */}
               <div className="mt-8 text-left max-w-2xl mx-auto">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">
                   Quick Field Scenarios
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -261,7 +273,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                         <span>{prompt.title}</span>
                         <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-red-600" />
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-snug">
+                      <div className="text-[12px] text-slate-500 mt-1 line-clamp-2 leading-snug">
                         {prompt.query}
                       </div>
                     </button>
@@ -273,12 +285,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
           {/* Render Messages */}
           <div className="flex flex-col gap-5">
-            {messages.map((msg) => {
+            {messages.map((msg, idx) => {
               const isUser = msg.role === 'user';
+              const msgKey = `chat-msg-${msg.id || 'idx'}-${idx}`;
 
               if (isUser) {
                 return (
-                  <div key={msg.id} className="flex gap-4 items-start justify-end">
+                  <div key={msgKey} className="flex gap-4 items-start justify-end">
                     <div className="bg-red-600 text-white p-4 rounded-2xl rounded-tr-none text-sm shadow-sm max-w-[85%] sm:max-w-[80%] leading-relaxed font-normal">
                       {msg.content}
                     </div>
@@ -288,8 +301,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
               // Assistant SOP Response Bubble
               return (
-                <div key={msg.id} className="flex gap-3 sm:gap-4 items-start">
-                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0 text-slate-600 font-bold text-[10px] shadow-xs">
+                <div key={msgKey} className="flex gap-3 sm:gap-4 items-start">
+                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0 text-slate-600 font-bold text-[11px] shadow-xs">
                     AI
                   </div>
                   <div className="bg-white border border-gray-200 p-6 rounded-2xl rounded-tl-none text-sm shadow-sm flex-1 overflow-hidden">
@@ -334,13 +347,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     {/* Sources & Citations Footer */}
                     <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between flex-wrap gap-2">
                       {msg.citations && msg.citations.length > 0 ? (
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                        <div className="text-[12px] text-slate-500 flex items-center gap-1.5 flex-wrap">
                           <span className="font-bold text-slate-600">Sources:</span>
                           {msg.citations.map((c, idx) => (
                             <button
                               key={idx}
                               onClick={() => setSelectedCitation(c)}
-                              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[11px] font-medium transition-colors flex items-center gap-1"
+                              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-[12px] font-medium transition-colors flex items-center gap-1"
                               title="Inspect exact SOP excerpt"
                             >
                               <span className="truncate max-w-[190px]">
@@ -351,7 +364,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                           ))}
                         </div>
                       ) : (
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-[12px] text-slate-400">
                           Dialog Field Engineering Verified Retrieval
                         </div>
                       )}
@@ -431,7 +444,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           {/* Loading Indicator */}
           {isLoading && (
             <div className="flex gap-3 sm:gap-4 items-start">
-              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0 text-slate-600 font-bold text-[10px] shadow-xs">
+              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center shrink-0 text-slate-600 font-bold text-[11px] shadow-xs">
                 AI
               </div>
               <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-none p-5 text-xs text-slate-600 flex items-center gap-3 shadow-sm">
@@ -443,7 +456,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <div className="font-bold text-slate-900">
                     Searching active SOP embeddings...
                   </div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="text-[12px] text-slate-500">
                     Retrieving cosine matches & synthesizing procedural steps
                   </div>
                 </div>
@@ -458,7 +471,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-bold text-red-900">Procedure Retrieval Failed</div>
-                  <div className="text-[11px] text-red-700 mt-0.5">{errorMessage}</div>
+                  <div className="text-[12px] text-red-700 mt-0.5">{errorMessage}</div>
                 </div>
               </div>
               {lastFailedQuestion && (
@@ -512,7 +525,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <Send className="w-4 h-4" />
             </button>
           </form>
-          <p className="text-center text-[10px] text-slate-400 mt-4 uppercase tracking-widest leading-relaxed">
+          <p className="text-center text-[11px] text-slate-400 mt-4 uppercase tracking-widest leading-relaxed">
             Disclaimer: This AI uses internal SOP data only. Always verify safety-critical steps with a supervisor.
           </p>
         </div>

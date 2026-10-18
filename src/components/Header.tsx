@@ -98,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Active AI Provider Badge */}
         {aiStatus && (
           <div
-            className={`hidden sm:flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all ${
+            className={`hidden sm:flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all ${
               aiStatus.provider === 'rapidapi'
                 ? 'text-sky-700 bg-sky-50 border-sky-200'
                 : aiStatus.provider === 'gemini'
@@ -127,14 +127,14 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {/* Database Synced status badge */}
-        <div className="flex items-center gap-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+        <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
           <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
           <span className="tracking-wide">DATABASE SYNCED</span>
         </div>
 
         {/* Hourly Rate Limit Quota */}
         <div
-          className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 text-[11px] text-slate-600"
+          className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 text-[12px] text-slate-600"
           title="Hourly API call quota to control engineering costs"
         >
           <Radio className="w-3.5 h-3.5 text-amber-500" />
@@ -164,7 +164,7 @@ export const Header: React.FC<HeaderProps> = ({
             id="top-profile-menu-button"
             title="Authenticated Database Account"
           >
-            <div className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] text-white bg-amber-600 shadow-xs">
+            <div className="w-5 h-5 rounded-full flex items-center justify-center font-bold text-[11px] text-white bg-amber-600 shadow-xs">
               {currentProfile.full_name.charAt(0)}
             </div>
             <span className="hidden xl:inline text-xs font-semibold text-slate-700 max-w-[120px] truncate">
@@ -177,21 +177,21 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
               <div className="px-3.5 py-2 border-b border-gray-100 mb-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
                     Database Account
                   </span>
-                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
+                  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">
                     Active
                   </span>
                 </div>
                 <div className="text-xs font-bold text-slate-900 truncate mt-1">
                   {currentProfile.full_name}
                 </div>
-                <div className="text-[11px] text-slate-500 font-mono truncate flex items-center gap-1 mt-0.5">
+                <div className="text-[12px] text-slate-500 font-mono truncate flex items-center gap-1 mt-0.5">
                   <Mail className="w-3 h-3 text-slate-400" />
                   <span>{currentProfile.email || 'rizkan6@gmail.com'}</span>
                 </div>
-                <div className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded w-fit">
+                <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded w-fit">
                   <ShieldCheck className="w-3 h-3 text-amber-600" />
                   <span>Master Administrator</span>
                 </div>
@@ -199,9 +199,9 @@ export const Header: React.FC<HeaderProps> = ({
 
               {availableProfiles.length > 1 && onProfileChange && (
                 <div className="space-y-0.5 px-1 py-1 border-b border-gray-100">
-                  {availableProfiles.map((p) => (
+                  {availableProfiles.map((p, idx) => (
                     <button
-                      key={p.id}
+                      key={`profile-${p.id}-${idx}`}
                       onClick={() => {
                         onProfileChange(p);
                         setProfileDropdownOpen(false);
@@ -214,7 +214,7 @@ export const Header: React.FC<HeaderProps> = ({
                     >
                       <div className="truncate pr-2">
                         <div className="truncate font-semibold">{p.full_name}</div>
-                        <div className="text-[10px] text-slate-500 capitalize">
+                        <div className="text-[11px] text-slate-500 capitalize">
                           {p.role === 'admin' ? 'Master Admin' : 'Field Engineering'}
                         </div>
                       </div>

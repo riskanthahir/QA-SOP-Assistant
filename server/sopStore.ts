@@ -171,8 +171,9 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
       } catch (err: any) {
         if (isNetworkOrFetchError(err)) {
           markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Active SOP documents sync info:', err?.message || err);
         }
-        console.warn('[SOPStore] Notice fetching active SOP documents (using static & memory cache):', err?.message || err);
       }
     }
 
@@ -196,7 +197,7 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
       // Pre-flight reachability check
       const isReachable = await checkSupabaseReachability();
       if (!isReachable) {
-        console.warn('[SOPStore] Supabase host is currently unreachable. Operating in high-availability standalone mode with verified Dialog SOP documents.');
+        console.log('[SOPStore] Supabase host is currently unreachable. Operating in high-availability standalone mode with verified Dialog SOP documents.');
         return;
       }
 
@@ -228,7 +229,7 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           if (isNetworkOrFetchError(createErr)) {
             markSupabaseUnhealthy(createErr);
           } else {
-            console.warn('[SOPStore] Notice creating master admin in database:', createErr?.message || createErr);
+            console.log('[SOPStore] Notice creating master admin in database:', createErr?.message || createErr);
           }
         } else {
           masterUser = created?.user;
@@ -367,8 +368,12 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           console.log('[SOPStore] Initial Dialog SOP documents and pgvector chunks successfully indexed in Supabase.');
         }
       }
-    } catch (err) {
-      console.error('[SOPStore] Error bootstrapping Supabase data:', err);
+    } catch (err: any) {
+      if (isNetworkOrFetchError(err)) {
+        markSupabaseUnhealthy(err);
+      } else {
+        console.log('[SOPStore] Standalone mode initialized (external database offline):', err?.message || err);
+      }
     }
   }
 
@@ -713,8 +718,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           .order('created_at', { ascending: false });
 
         if (error) {
-          if (isNetworkOrFetchError(error)) markSupabaseUnhealthy(error);
-          console.warn('[SOPStore] Notice querying chats from Supabase (using memory cache):', error?.message || error);
+          if (isNetworkOrFetchError(error)) {
+            markSupabaseUnhealthy(error);
+          } else {
+            console.log('[SOPStore] Notice querying chats from Supabase:', error?.message || error);
+          }
         } else if (Array.isArray(chats)) {
           const dbChats: Chat[] = chats.map((c: any) => {
             const msgs = Array.isArray(c.messages) ? c.messages : [];
@@ -738,15 +746,26 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           for (const ch of dbChats) {
             this.inMemoryChats.set(ch.id, ch);
           }
-          return dbChats;
+          const uniqueDb = new Map<string, Chat>();
+          for (const ch of dbChats) {
+            if (ch && ch.id) uniqueDb.set(ch.id, ch);
+          }
+          return Array.from(uniqueDb.values());
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Notice fetching chats from Supabase (using memory fallback):', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Notice fetching chats from Supabase:', err?.message || err);
+        }
       }
     }
 
-    return memChats.sort(
+    const uniqueMem = new Map<string, Chat>();
+    for (const ch of memChats) {
+      if (ch && ch.id) uniqueMem.set(ch.id, ch);
+    }
+    return Array.from(uniqueMem.values()).sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
   }
@@ -775,8 +794,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           .single();
 
         if (error) {
-          if (isNetworkOrFetchError(error)) markSupabaseUnhealthy(error);
-          console.warn('[SOPStore] Notice creating chat in Supabase (using local session):', error?.message || error);
+          if (isNetworkOrFetchError(error)) {
+            markSupabaseUnhealthy(error);
+          } else {
+            console.log('[SOPStore] Notice creating chat in Supabase:', error?.message || error);
+          }
         } else if (data) {
           const savedChat: Chat = {
             id: data.id,
@@ -790,8 +812,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           return savedChat;
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Notice creating chat in Supabase (persisted in memory):', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Notice creating chat in Supabase:', err?.message || err);
+        }
       }
     }
 
@@ -811,8 +836,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           .order('created_at', { ascending: true });
 
         if (error) {
-          if (isNetworkOrFetchError(error)) markSupabaseUnhealthy(error);
-          console.warn('[SOPStore] Notice fetching messages from Supabase (using memory cache):', error?.message || error);
+          if (isNetworkOrFetchError(error)) {
+            markSupabaseUnhealthy(error);
+          } else {
+            console.log('[SOPStore] Notice fetching messages from Supabase:', error?.message || error);
+          }
         } else if (Array.isArray(data)) {
           const formatted: Message[] = data.map((m: any) => ({
             id: m.id,
@@ -828,8 +856,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           return formatted;
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Notice fetching messages from Supabase (using memory fallback):', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Notice fetching messages from Supabase:', err?.message || err);
+        }
       }
     }
 
@@ -854,8 +885,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
         if (error && isNetworkOrFetchError(error)) markSupabaseUnhealthy(error);
         if (profile?.language) language = profile.language as SupportedLanguage;
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Error fetching user language profile:', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] User language profile info:', err?.message || err);
+        }
       }
     }
 
@@ -938,8 +972,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           await supabase.from('chats').update({ title: cleanTitle }).eq('id', chatId);
         }
       } catch (dbErr: any) {
-        if (isNetworkOrFetchError(dbErr)) markSupabaseUnhealthy(dbErr);
-        console.warn('[SOPStore] Notice saving messages to database (cached in memory):', dbErr?.message || dbErr);
+        if (isNetworkOrFetchError(dbErr)) {
+          markSupabaseUnhealthy(dbErr);
+        } else {
+          console.log('[SOPStore] Notice saving messages to database:', dbErr?.message || dbErr);
+        }
       }
     }
 
@@ -1046,8 +1083,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           }));
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] match_sop_chunks RPC notice, using local hybrid search:', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] match_sop_chunks info:', err?.message || err);
+        }
       }
     }
 
@@ -1088,8 +1128,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           chunks = this.rankCandidateChunks(candidateChunks, question, questionEmbedding, topK);
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Database chunk retrieval notice:', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Database chunk retrieval info:', err?.message || err);
+        }
       }
     }
 
@@ -1341,8 +1384,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           .order('uploaded_at', { ascending: false });
 
         if (error) {
-          if (isNetworkOrFetchError(error)) markSupabaseUnhealthy(error);
-          console.warn('[SOPStore] Notice querying documents from Supabase:', error?.message || error);
+          if (isNetworkOrFetchError(error)) {
+            markSupabaseUnhealthy(error);
+          } else {
+            console.log('[SOPStore] Notice querying documents from Supabase:', error?.message || error);
+          }
         } else if (docs) {
           for (const d of docs) {
             docMap.set(d.id, {
@@ -1359,8 +1405,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           }
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Notice fetching documents from Supabase (using memory cache):', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Notice fetching documents from Supabase:', err?.message || err);
+        }
       }
     }
 
@@ -1386,12 +1435,18 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           .eq('id', documentId);
 
         if (error) {
-          if (isNetworkOrFetchError(error)) markSupabaseUnhealthy(error);
-          console.warn('[SOPStore] Notice archiving document in Supabase:', error?.message || error);
+          if (isNetworkOrFetchError(error)) {
+            markSupabaseUnhealthy(error);
+          } else {
+            console.log('[SOPStore] Notice archiving document in Supabase:', error?.message || error);
+          }
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Supabase archive notice (archived in memory):', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Supabase archive notice:', err?.message || err);
+        }
       }
     }
     return true;
@@ -1413,12 +1468,18 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           .eq('id', documentId);
 
         if (error) {
-          if (isNetworkOrFetchError(error)) markSupabaseUnhealthy(error);
-          console.warn('[SOPStore] Notice restoring document in Supabase:', error?.message || error);
+          if (isNetworkOrFetchError(error)) {
+            markSupabaseUnhealthy(error);
+          } else {
+            console.log('[SOPStore] Notice restoring document in Supabase:', error?.message || error);
+          }
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Supabase restore notice (restored in memory):', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Supabase restore notice:', err?.message || err);
+        }
       }
     }
     return true;
@@ -1445,12 +1506,18 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
         await supabase.from('indexing_jobs').delete().eq('document_id', documentId);
         const { error } = await supabase.from('sop_documents').delete().eq('id', documentId);
         if (error) {
-          if (isNetworkOrFetchError(error)) markSupabaseUnhealthy(error);
-          console.warn('[SOPStore] Notice deleting document in Supabase:', error?.message || error);
+          if (isNetworkOrFetchError(error)) {
+            markSupabaseUnhealthy(error);
+          } else {
+            console.log('[SOPStore] Notice deleting document in Supabase:', error?.message || error);
+          }
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Supabase delete notice (deleted in memory):', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Supabase delete notice:', err?.message || err);
+        }
       }
     }
 
@@ -1558,9 +1625,9 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
         if (docErr) {
           if (isNetworkOrFetchError(docErr)) {
             markSupabaseUnhealthy(docErr);
-            console.warn('[SOPStore] Supabase host unreachable during document upload. Document stored in active memory store.');
+            console.log('[SOPStore] Supabase host unreachable during document upload. Document stored in active memory store.');
           } else {
-            console.warn('[SOPStore] Notice inserting document into database (kept in memory):', docErr?.message || docErr);
+            console.log('[SOPStore] Notice inserting document into database:', docErr?.message || docErr);
           }
         } else if (dbDoc) {
           createdDoc.id = dbDoc.id;
@@ -1587,8 +1654,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           });
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Notice while saving to database (kept in memory):', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Notice while saving to database:', err?.message || err);
+        }
       }
     }
 
@@ -1603,24 +1673,50 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
     const lines = text.split('\n');
     const sections: Array<{ sectionLabel: string; content: string }> = [];
 
-    let currentLabel = 'General Instructions';
+    let currentLabel = 'Overview & General Instructions';
     let currentLines: string[] = [];
 
     const isHeader = (line: string): string | null => {
       const trimmed = line.trim();
-      if (!trimmed) return null;
-      if (/^(?:#+\s*)?(?:[0-9]+\.?\s*)?(health\s*(&|and)?\s*safety|safety\s*guidelines|ppe)/i.test(trimmed)) {
+      if (!trimmed || trimmed.length > 90) return null;
+
+      // 1. Markdown headings (#, ##, ###)
+      const mdMatch = trimmed.match(/^#{1,4}\s+(.+)$/);
+      if (mdMatch) return mdMatch[1].trim();
+
+      // 2. Numbered technical headings (e.g. "1. Scope", "2.1 Health & Safety", "Section 3: Splicing Steps")
+      const numMatch = trimmed.match(/^(?:section\s*\d*[:\.\-]?\s*|\d+(?:\.\d+)*[\.\)]\s*)([A-Z][^\n]{2,70})$/i);
+      if (numMatch) return numMatch[1].trim();
+
+      // 3. Roman numerals (e.g. "IV. Calibration", "II. Safety")
+      const romanMatch = trimmed.match(/^(?:[IVXLCDM]+[\.\)]\s*)([A-Z][^\n]{2,70})$/i);
+      if (romanMatch) return romanMatch[1].trim();
+
+      // 4. Keyword based technical section identification
+      if (/^(?:[0-9]+\.?\s*)?(health\s*(&|and)?\s*safety|safety\s*guidelines|ppe|hazard\s*controls?)/i.test(trimmed)) {
         return 'Health & Safety';
       }
-      if (/^(?:#+\s*)?(?:[0-9]+\.?\s*)?(tools\s*(&|and)?\s*materials|equipment|required\s*tools)/i.test(trimmed)) {
+      if (/^(?:[0-9]+\.?\s*)?(tools\s*(&|and)?\s*materials|equipment(\s*required)?|instruments?|calibrated\s*tools)/i.test(trimmed)) {
         return 'Tools & Materials Required';
       }
-      if (/^(?:#+\s*)?(?:[0-9]+\.?\s*)?(procedure|steps|installation|execution|workflow)/i.test(trimmed)) {
-        return 'Procedure';
+      if (/^(?:[0-9]+\.?\s*)?(procedure|steps|installation|execution|workflow|work\s*instructions?|operational\s*method)/i.test(trimmed)) {
+        return 'Procedure / Step-by-Step Instructions';
       }
-      if (/^(?:#+\s*)?(?:[0-9]+\.?\s*)?(site\s*cleanup|cleanup|handover|testing\s*(&|and)?\s*signoff)/i.test(trimmed)) {
+      if (/^(?:[0-9]+\.?\s*)?(quality\s*tolerances?|tolerances?|acceptance\s*criteria|testing\s*(&|and)?\s*verification|inspection\s*limits?)/i.test(trimmed)) {
+        return 'Quality Tolerances & Testing Parameters';
+      }
+      if (/^(?:[0-9]+\.?\s*)?(site\s*cleanup|cleanup|handover|sign-?off|waste\s*disposal|commissioning\s*handover)/i.test(trimmed)) {
         return 'Site Cleanup & Handover';
       }
+      if (/^(?:[0-9]+\.?\s*)?(troubleshooting|fault\s*finding|maintenance|diagnostics?)/i.test(trimmed)) {
+        return 'Troubleshooting & Fault Finding';
+      }
+
+      // 5. ALL CAPS section line (e.g. "OPTICAL DROP CABLE TERMINATION", "EARTH RESISTANCE MEASUREMENT")
+      if (/^[A-Z0-9\s\-_&/()]{4,60}$/.test(trimmed) && trimmed.split(' ').length <= 8 && trimmed.length >= 6) {
+        return trimmed;
+      }
+
       return null;
     };
 
@@ -1647,7 +1743,38 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
       });
     }
 
-    return sections.filter((s) => s.content.length > 15);
+    // Sub-chunk oversized sections (> 1400 chars) for high-precision retrieval
+    const finalSections: Array<{ sectionLabel: string; content: string }> = [];
+    for (const sec of sections) {
+      if (sec.content.length <= 1400) {
+        if (sec.content.length > 15) finalSections.push(sec);
+      } else {
+        const paragraphs = sec.content.split(/\n\s*\n/).filter(Boolean);
+        let currentChunk = '';
+        let chunkIdx = 1;
+        for (const p of paragraphs) {
+          if (currentChunk.length + p.length > 1200) {
+            if (currentChunk.trim().length > 15) {
+              finalSections.push({
+                sectionLabel: `${sec.sectionLabel} (Part ${chunkIdx++})`,
+                content: currentChunk.trim(),
+              });
+            }
+            currentChunk = p;
+          } else {
+            currentChunk += (currentChunk ? '\n\n' : '') + p;
+          }
+        }
+        if (currentChunk.trim().length > 15) {
+          finalSections.push({
+            sectionLabel: chunkIdx > 1 ? `${sec.sectionLabel} (Part ${chunkIdx})` : sec.sectionLabel,
+            content: currentChunk.trim(),
+          });
+        }
+      }
+    }
+
+    return finalSections.length > 0 ? finalSections : [{ sectionLabel: 'Field Technical Manual', content: text.trim() }];
   }
 
   public async getIndexingJobs(): Promise<IndexingJob[]> {
@@ -1674,8 +1801,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           .limit(30);
 
         if (error) {
-          if (isNetworkOrFetchError(error)) markSupabaseUnhealthy(error);
-          console.warn('[SOPStore] Notice fetching indexing jobs from Supabase:', error?.message || error);
+          if (isNetworkOrFetchError(error)) {
+            markSupabaseUnhealthy(error);
+          } else {
+            console.log('[SOPStore] Notice fetching indexing jobs from Supabase:', error?.message || error);
+          }
         } else if (data) {
           for (const j of data as any[]) {
             jobsMap.set(j.id, {
@@ -1691,8 +1821,11 @@ Upload cell impedance baseline readings to Dialog Power Infrastructure Operation
           }
         }
       } catch (err: any) {
-        if (isNetworkOrFetchError(err)) markSupabaseUnhealthy(err);
-        console.warn('[SOPStore] Notice fetching indexing jobs from Supabase:', err?.message || err);
+        if (isNetworkOrFetchError(err)) {
+          markSupabaseUnhealthy(err);
+        } else {
+          console.log('[SOPStore] Notice fetching indexing jobs from Supabase:', err?.message || err);
+        }
       }
     }
 

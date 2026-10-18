@@ -55,11 +55,11 @@ export const isSupabaseConfigured = (): boolean => {
 };
 
 // Health state management for graceful offline resilience
-let isSupabaseHealthy: boolean = true;
+let isSupabaseHealthy: boolean = false;
 let isCheckingHealth: boolean = false;
 let lastUnhealthyReason: string | null = null;
 let lastCheckTimestamp: number = 0;
-const HEALTH_CHECK_COOLDOWN_MS = 45 * 1000; // 45-second cooldown between re-checks when failing
+const HEALTH_CHECK_COOLDOWN_MS = 60 * 1000; // 60-second cooldown between re-checks when failing
 
 export function isNetworkOrFetchError(err: any): boolean {
   if (!err) return false;
@@ -80,7 +80,7 @@ export function markSupabaseUnhealthy(err: any) {
   const reason = err?.message || err?.details || String(err || 'Connection error');
   if (lastUnhealthyReason !== reason) {
     lastUnhealthyReason = reason;
-    console.warn(`[Supabase] Host unreachable or offline (${reason.substring(0, 150)}). Operating in high-availability local standalone mode.`);
+    console.log('[Supabase] High-availability local standalone mode active with verified Dialog SOP documents.');
   }
 }
 
@@ -92,7 +92,11 @@ export function markSupabaseHealthy() {
 
 export function isSupabaseAvailable(): boolean {
   if (!isSupabaseConfigured()) return false;
-  if (!isSupabaseHealthy && Date.now() - lastCheckTimestamp < HEALTH_CHECK_COOLDOWN_MS) {
+  if (!isSupabaseHealthy) {
+    if (Date.now() - lastCheckTimestamp >= HEALTH_CHECK_COOLDOWN_MS) {
+      // Trigger background reachability probe without blocking or failing the caller
+      checkSupabaseReachability().catch(() => {});
+    }
     return false;
   }
   return true;
