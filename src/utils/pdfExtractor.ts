@@ -1,23 +1,98 @@
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure worker using CDN or local worker if available
-if (typeof window !== 'undefined') {
-  // Use official CDN worker matching installed version to avoid Vite bundling complications
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+// In Vite, importing with ?url provides a local bundled asset URL for the worker.
+// Fallback to CDN or disabled worker if URL import fails in any environment.
+let workerInitialized = false;
+
+function initPdfWorker() {
+  if (workerInitialized || typeof window === 'undefined') return;
+  try {
+    // Attempt local bundled worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url
+    ).toString();
+    workerInitialized = true;
+  } catch (err) {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+      workerInitialized = true;
+    } catch {
+      // Worker options can remain unset; getDocument will handle disableWorker mode
+    }
+  }
 }
 
 /**
- * Client-side PDF text extractor that runs directly in the user's browser.
- * This completely avoids sending large PDF files across the network and
- * prevents Vercel 4.5MB payload limit (HTTP 413) errors.
+ * Extracts text from a PDF file directly inside the browser.
+ * This completely avoids sending large binary PDF files across the network,
+ * eliminating HTTP 413 (Payload Too Large) and Vercel 4.5MB serverless limits.
  */
-export async function extractTextFromPdfClient(file: File): Promise<{ text: string; pageCount: number }> {
+export async function extractTextFromPdfClient(
+  file: File,
+  onProgress?: (progressPercent: number, stageText: string) => void
+): Promise<{ text: string; pageCount: number }> {
+  initPdfWorker();
+
+  const fileSizeMb = (file.size / (1024 * 1024)).toFixed(1);
+  onProgress?.(10, `Reading "${file.name}" (${fileSizeMb} MB)...`);
+
+  const arrayBuffer = await file.arrayBuffer();
+  const uint8 = new Uint8Array(arrayBuffer);
+
+  // Strategy 1: PDF.js with standard configuration
   try {
-    const arrayBuffer = await file.arrayBuffer();
+    onProgress?.(25, 'Parsing document structure with PDF engine...');
     const loadingTask = pdfjsLib.getDocument({
-      data: new Uint8Array(arrayBuffer),
+      data: uint8,
       useSystemFonts: true,
+      stopAtErrors: false,
     });
+
+    const pdf = await loadingTask.promise;
+    const pageCount = pdf.numPages;
+    const pageTexts: string[] = [];
+
+    for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+      const pageProgress = 25 + Math.round((pageNum / pageCount) * 50);
+      onProgress?.(pageProgress, `Extracting page ${pageNum} of ${pageCount}...`);
+
+      try {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => (typeof item.str === 'string' ? item.str : ''))
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        if (pageText) {
+          pageTexts.push(pageText);
+        }
+      } catch (pageErr) {
+        console.warn(`[PDFClient] Notice on page ${pageNum}:`, pageErr);
+      }
+    }
+
+    const fullText = pageTexts.join('\n\n');
+    if (fullText.trim().length > 30) {
+      onProgress?.(85, 'Formatting and indexing technical sections...');
+      return { text: fullText, pageCount };
+    }
+  } catch (err: any) {
+    console.warn('[PDFClient] Primary PDF.js extraction notice, attempting fallback engine:', err?.message || err);
+  }
+
+  // Strategy 2: PDF.js with disabled worker (works in restricted iframes and restrictive CSPs)
+  try {
+    onProgress?.(40, 'Running direct engine fallback...');
+    const loadingTask = pdfjsLib.getDocument({
+      data: uint8,
+      isEvalSupported: false,
+      useWorkerFetch: false,
+      disableWorker: true,
+      stopAtErrors: false,
+    } as any);
 
     const pdf = await loadingTask.promise;
     const pageCount = pdf.numPages;
@@ -29,47 +104,62 @@ export async function extractTextFromPdfClient(file: File): Promise<{ text: stri
         const textContent = await page.getTextContent();
         const pageText = textContent.items
           .map((item: any) => (typeof item.str === 'string' ? item.str : ''))
-          .join(' ');
+          .join(' ')
+          .trim();
 
-        if (pageText.trim()) {
-          pageTexts.push(pageText.trim());
-        }
-      } catch (pageErr) {
-        console.warn(`[PDFClient] Error extracting page ${pageNum}:`, pageErr);
+        if (pageText) pageTexts.push(pageText);
+      } catch {
+        // Continue
       }
     }
 
     const fullText = pageTexts.join('\n\n');
-    if (fullText.trim().length > 20) {
+    if (fullText.trim().length > 30) {
       return { text: fullText, pageCount };
     }
-  } catch (err) {
-    console.warn('[PDFClient] PDF.js extraction error, falling back to binary scan:', err);
+  } catch (err2) {
+    console.warn('[PDFClient] Strategy 2 notice:', err2);
   }
 
-  // Fallback: binary scan for raw text tokens if PDF.js fails
+  // Strategy 3: Fast binary text token scanner (for uncompressed or partially compressed streams)
+  onProgress?.(70, 'Scanning text token streams...');
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
     let latin1 = '';
     const chunkSize = 65536;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      latin1 += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
+    for (let i = 0; i < uint8.length; i += chunkSize) {
+      latin1 += String.fromCharCode.apply(null, Array.from(uint8.subarray(i, i + chunkSize)));
     }
+
     const matches: string[] = [];
-    const re = /\(([^()]{2,})\)\s*T[jJ]/g;
+
+    // Match (string) Tj or (string) TJ
+    const reTj = /\(([^()]{2,})\)\s*T[jJ]/g;
     let match;
-    while ((match = re.exec(latin1)) !== null) {
+    while ((match = reTj.exec(latin1)) !== null) {
       const str = match[1].replace(/\\([()\\])/g, '$1').trim();
       if (str.length > 2 && !/^[\x00-\x1F\x7F]+$/.test(str)) {
         matches.push(str);
       }
     }
-    if (matches.length > 8) {
-      return { text: matches.join(' '), pageCount: 1 };
+
+    // Match [ (str1) -12 (str2) ] TJ arrays
+    const reArrayTj = /\[\s*((?:\([^)]*\)|-?\d+[\.\d]*\s*)+)\]\s*TJ/g;
+    let arrMatch;
+    while ((arrMatch = reArrayTj.exec(latin1)) !== null) {
+      const inner = arrMatch[1];
+      const strParts = inner.match(/\(([^)]+)\)/g);
+      if (strParts) {
+        const joined = strParts.map(s => s.slice(1, -1).replace(/\\([()\\])/g, '$1')).join('');
+        if (joined.length > 2) matches.push(joined);
+      }
     }
-  } catch (fallbackErr) {
-    console.warn('[PDFClient] Binary fallback error:', fallbackErr);
+
+    if (matches.length > 5) {
+      const text = matches.join(' ').replace(/\s+/g, ' ');
+      return { text, pageCount: 1 };
+    }
+  } catch (scannerErr) {
+    console.warn('[PDFClient] Binary scan notice:', scannerErr);
   }
 
   return { text: '', pageCount: 0 };

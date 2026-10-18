@@ -400,8 +400,8 @@ export async function generateAnswerFromAllSOPs(
   const geminiKey = process.env.GEMINI_API_KEY;
   if (geminiKey && geminiKey.trim()) {
     const candidateModels = [
-      'gemini-3.5-flash',
       'gemini-3.5-flash-lite',
+      'gemini-3.5-flash',
       'gemini-flash-latest',
     ];
 
@@ -928,26 +928,43 @@ function searchAndSynthesizeFromAllSOPs(
 
     for (const term of searchTerms) {
       if (doc.title.toLowerCase().includes(term)) {
-        score += 5;
+        score += 6;
         titleHits++;
       }
       const occurrences = (textLower.match(new RegExp('\\b' + term, 'g')) || []).length;
-      score += Math.min(occurrences, 8);
+      score += Math.min(occurrences, 10);
+    }
+
+    // Substring / partial term matching bonus
+    for (const term of searchTerms) {
+      if (term.length >= 4 && textLower.includes(term.slice(0, 4))) {
+        score += 1.5;
+      }
     }
 
     return { doc, score, titleHits };
   }).sort((a, b) => b.score - a.score);
 
-  // If even expanded synonyms have zero relevance, return escalation
-  if (scoredDocs.length === 0 || scoredDocs[0].score === 0) {
+  // If score is 0, check if query relates to field engineering procedures generally
+  let primaryMatch: FullSOPDocument;
+  let topDocs: FullSOPDocument[] = [];
+
+  const isEngineeringOrGeneralProcedural = /\b(?:procedure|step|steps|how|what|instruction|instructions|guideline|guidelines|install|installation|safety|ppe|tool|tools|meter|tester|measure|test|testing|tolerance|limit|spec|specification|cleanup|handover|method|sop|manual|work|site|task)\b/i.test(question);
+
+  if (scoredDocs.length > 0 && scoredDocs[0].score > 0) {
+    primaryMatch = scoredDocs[0].doc;
+    topDocs = scoredDocs.filter(s => s.score > 0).slice(0, 2).map(s => s.doc);
+  } else if (allSOPs.length > 0 && (isEngineeringOrGeneralProcedural || allSOPs.length <= 3)) {
+    // If the officer asked for procedures or guidelines, use the primary uploaded SOP
+    primaryMatch = allSOPs[0];
+    topDocs = [allSOPs[0]];
+  } else {
+    // Only escalate if query is completely unrelated to telecom / engineering
     return {
       answer: getUnansweredMessage(language),
       citations: [],
     };
   }
-
-  const primaryMatch = scoredDocs[0].doc;
-  const topDocs = scoredDocs.filter(s => s.score > 0).slice(0, 2).map(s => s.doc);
 
   // Extract structured elements from matching document(s)
   const healthSafety: string[] = [];

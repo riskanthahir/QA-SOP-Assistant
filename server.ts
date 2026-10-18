@@ -175,6 +175,21 @@ app.get('/api/chats/:id/messages', async (req, res) => {
   }
 });
 
+// Delete Chat session
+app.delete('/api/chats/:id', async (req, res) => {
+  try {
+    const chatId = req.params.id;
+    if (!chatId) {
+      return res.status(400).json({ error: 'Missing chatId' });
+    }
+    const success = await sopStore.deleteChat(chatId);
+    res.json({ success });
+  } catch (err: any) {
+    console.error('Error deleting chat:', err);
+    res.status(500).json({ error: 'Failed to delete chat session' });
+  }
+});
+
 // Message Generation with live pgvector similarity & grounded Gemini synthesis
 app.post('/api/chat/message', async (req, res) => {
   try {
@@ -308,6 +323,17 @@ app.post('/api/admin/documents/delete', async (req, res) => {
   } catch (err: any) {
     console.error('Error deleting document:', err);
     res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
+// Purge any default/sample SOPs completely from database and memory
+app.post('/api/admin/clear-all-samples', async (req, res) => {
+  try {
+    const result = await sopStore.clearAllSampleSOPs();
+    res.json({ success: true, ...result });
+  } catch (err: any) {
+    console.error('Error clearing sample SOPs:', err);
+    res.status(500).json({ error: 'Failed to clear sample SOPs' });
   }
 });
 

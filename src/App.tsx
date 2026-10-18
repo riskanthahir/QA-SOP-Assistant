@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, BookOpen, BarChart3, Database, MessageSquare, X, RefreshCw, LogOut } from 'lucide-react';
+import { Plus, BookOpen, BarChart3, Database, MessageSquare, X, RefreshCw, LogOut, Trash2 } from 'lucide-react';
 import { Header } from './components/Header';
 import { ChatView } from './components/ChatView';
 import { AdminUploadView } from './components/AdminUploadView';
@@ -180,6 +180,28 @@ export default function App() {
     return undefined;
   };
 
+  const handleDeleteChat = async (chatIdToDelete: string) => {
+    try {
+      const remainingChats = chats.filter((c) => c.id !== chatIdToDelete);
+      setChats(remainingChats);
+
+      if (currentChatId === chatIdToDelete) {
+        if (remainingChats.length > 0) {
+          setCurrentChatId(remainingChats[0].id);
+          setActiveTopic(remainingChats[0].title);
+        } else {
+          handleCreateNewChat();
+        }
+      }
+
+      await fetch(`/api/chats/${chatIdToDelete}`, {
+        method: 'DELETE',
+      });
+    } catch (err) {
+      console.error('Failed to delete chat:', err);
+    }
+  };
+
   const handleLanguageChange = async (newLanguage: SupportedLanguage) => {
     if (!currentProfile) return;
     const updated = { ...currentProfile, language: newLanguage };
@@ -302,7 +324,7 @@ export default function App() {
                 </div>
               ) : (
                 Array.from(new Map(chats.map((c) => [c.id, c])).values())
-                  .slice(0, 8)
+                  .slice(0, 10)
                   .map((chat, idx) => {
                     const isActive = currentView === 'chat' && currentChatId === chat.id;
                     return (
@@ -314,14 +336,25 @@ export default function App() {
                           setCurrentView('chat');
                           setSidebarMobileOpen(false);
                         }}
-                        className={`p-2 rounded cursor-pointer text-xs truncate transition-colors ${
+                        className={`group flex items-center justify-between p-2 rounded cursor-pointer text-xs transition-colors ${
                           isActive
                             ? 'bg-slate-800 text-white font-semibold border-l-4 border-red-500'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                         }`}
                         title={chat.title}
                       >
-                        {chat.title}
+                        <span className="truncate flex-1 mr-1.5">{chat.title}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteChat(chat.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 text-slate-500 rounded hover:bg-slate-700/60 transition-all shrink-0"
+                          title="Delete consultation"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     );
                   })

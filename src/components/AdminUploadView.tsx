@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Upload,
   FileText,
   CheckCircle2,
   AlertCircle,
-  Clock,
   Archive,
-  Eye,
   RefreshCw,
   Layers,
-  Sparkles,
-  ShieldAlert,
   ArrowRight,
   Loader2,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  Edit3,
+  Check,
+  ShieldCheck,
+  X
 } from 'lucide-react';
 import { SOPDocument, IndexingJob, Profile } from '../types';
 import { extractTextFromPdfClient } from '../utils/pdfExtractor';
@@ -24,64 +24,6 @@ interface AdminUploadViewProps {
   onDocumentsChanged?: () => void;
 }
 
-const SAMPLE_TEMPLATES = [
-  {
-    title: 'Dialog SOP-ENG-MW-05: High-Capacity Microwave Radio Link Alignment & ODU Installation',
-    version: '1.0',
-    content: `1. Health & Safety
-Work at height guidelines: Use double-lanyard climbing harness with ascender and rope grab.
-RF Radiation Safety: Inhibit microwave transmitter power at the Indoor Unit (IDU) before handling or mounting the Outdoor Unit (ODU) and parabolic feed horn.
-Weather Hazard: Never climb towers when wind speed exceeds 35 km/h or during local lightning warnings.
-
-2. Tools & Materials Required
-Microwave alignment kit with digital volt-ohmmeter (DVM) to monitor Receiver Signal Level (RSL) test port.
-Torque wrench with 13mm and 17mm insulated sockets (30-45 Nm rating).
-Dialog approved high-gain parabolic antenna (0.6m or 1.2m diameter) and direct-mount ODU.
-RG-6 / CNT-400 coaxial IF cable or shielded Cat6A outdoor FTP with waterproof RJ45 grommets.
-Cold-shrink grounding kits and 25x3mm copper earth bonding bar.
-
-3. Procedure
-Step 1: Mount antenna bracket onto 114mm tower mast pipe. Torque bracket U-bolts alternately to 40 Nm to prevent tilt misalignment.
-Step 2: Connect ODU to antenna feed collar with Dialog approved silicone O-ring gasket. Ensure polarization pin is locked for Vertical or Horizontal polarization according to RF frequency license.
-Step 3: Connect DVM test leads to ODU AGC (Automatic Gain Control) voltage port.
-Step 4: Perform coarse pan azimuth sweep across 360 degrees until initial AGC signal voltage registers (> 1.0 VDC).
-Step 5: Perform fine azimuth and elevation micrometer adjustments to achieve target design RSL ± 1.5 dBm. Lock all fine adjustment nuts.
-Step 6: Ground ODU chassis and IF cable shielding to tower main earth collector busbar using 16mm² copper ground conductor.
-
-4. Site Cleanup & Handover
-Collect all cable cut-offs, cable ties, and packaging materials.
-Re-check waterproof integrity of ODU boot seal.
-Verify bit error rate (BER) is 10^-9 or better with zero frame drops over a 15-minute soak test. Submit alignment certificate to Dialog Transmission Engineering Desk.`,
-  },
-  {
-    title: 'Dialog SOP-ENG-GEN-03: Standby Diesel Generator Servicing & Automatic Transfer Switch (ATS) Testing',
-    version: '2.0',
-    content: `1. Health & Safety
-Lockout / Tagout (LOTO): Place genset controller in "MANUAL OFF" and disconnect 12V/24V starter battery negative terminal before servicing mechanical drive belts or fuel lines.
-Hot Surfaces: Allow exhaust manifold and turbocharger to cool for at least 30 minutes before changing oil or filters.
-Spill Containment: Place oil drip tray under sump drain plug to prevent environmental fuel contamination.
-
-2. Tools & Materials Required
-Filter strap wrench set and drain pan (15L capacity).
-Dialog approved 15W-40 CI-4 heavy-duty diesel engine oil and OEM fuel/water separator filters.
-Digital multimeter (CAT III 1000V) and infrared thermal imaging gun.
-Class-B foam fire extinguisher and hydrocarbon spill cleanup kit.
-
-3. Procedure
-Step 1: Drain engine oil through sump drain valve into containment pan. Replace primary and secondary fuel filters.
-Step 2: Refill engine with fresh 15W-40 oil to dipstick upper notch mark. Prime fuel system using hand pump to purge air bubbles.
-Step 3: Reconnect starter battery terminals. Torque terminal bolts to 10 Nm and coat with petroleum jelly.
-Step 4: Test automatic start cycle: Simulate utility CEB mains failure by opening main circuit breaker.
-Step 5: Verify generator starts, achieves rated 1500 RPM / 50 Hz within 8 seconds, and ATS transfers telecom site load smoothly.
-Step 6: Run under site load for 30 minutes. Measure phase-to-phase voltages (400V ± 2%) and oil pressure (> 3.5 bar).
-
-4. Site Cleanup & Handover
-Transfer used engine oil into labeled regional recycling drums. Clean any minor oil drips from shelter floor with absorbent pads.
-Update physical maintenance log sheet attached to genset canopy with engine run hours, date, and technician EPF ID.
-Restore ATS to "AUTO" mode and confirm Dialog NOC telemetry receives "Genset Ready" status.`,
-  },
-];
-
 export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile, onDocumentsChanged }) => {
   const [documents, setDocuments] = useState<SOPDocument[]>([]);
   const [indexingJobs, setIndexingJobs] = useState<IndexingJob[]>([]);
@@ -89,22 +31,30 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
   const [version, setVersion] = useState('1.0');
   const [rawText, setRawText] = useState('');
   const [archiveOldVersionId, setArchiveOldVersionId] = useState<string>('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [isParsingPdf, setIsParsingPdf] = useState(false);
+  const [revisingDocTitle, setRevisingDocTitle] = useState<string | null>(null);
+
+  // Upload & Extraction Progress States
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Deletion States
   const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<SOPDocument | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isClearingSamples, setIsClearingSamples] = useState(false);
 
   // Section splitting preview
   const [previewSections, setPreviewSections] = useState<Array<{ label: string; text: string }>>([]);
+
+  const formRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchDocumentsAndJobs();
   }, []);
 
   useEffect(() => {
-    // Dynamic preview of section splitting as text is entered
     if (rawText.trim()) {
       parseSectionsPreview(rawText);
     } else {
@@ -165,7 +115,6 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Use filename as default title if not already set
     if (!title) {
       setTitle(file.name.replace(/\.[^/.]+$/, '').replace(/_/g, ' '));
     }
@@ -173,7 +122,9 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
     const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
 
     if (isPdf) {
-      setIsParsingPdf(true);
+      setIsProcessing(true);
+      setUploadProgress(5);
+      setUploadStage(`Loading "${file.name}"...`);
       setUploadError(null);
       setUploadSuccess(null);
 
@@ -183,10 +134,14 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
         let extractedText = '';
         let pageCount = 0;
 
-        // 1. Primary: Extract directly in browser (eliminates Vercel 4.5MB payload limit completely!)
+        // 1. Primary: Extract directly in browser (eliminates 413 & payload limits completely)
         try {
-          const clientRes = await extractTextFromPdfClient(file);
-          if (clientRes.text && clientRes.text.trim().length > 20) {
+          const clientRes = await extractTextFromPdfClient(file, (pct, stage) => {
+            setUploadProgress(pct);
+            setUploadStage(stage);
+          });
+
+          if (clientRes.text && clientRes.text.trim().length > 25) {
             extractedText = clientRes.text;
             pageCount = clientRes.pageCount;
           }
@@ -194,8 +149,10 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
           console.warn('[PDF] Client-side extraction notice:', clientErr);
         }
 
-        // 2. Server fallback only for small files (< 4MB) if client extraction didn't find sufficient text
+        // 2. Safe Server fallback only for small files (< 4MB) if client extraction was inconclusive
         if (!extractedText.trim() && file.size < 4 * 1024 * 1024) {
+          setUploadProgress(50);
+          setUploadStage('Attempting server-side extraction fallback...');
           try {
             const resp = await fetch('/api/admin/documents/parse-pdf', {
               method: 'POST',
@@ -203,17 +160,17 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
               body: file,
             });
 
-            // Read response body ONCE as text to prevent "body stream already read"
-            const respBodyText = await resp.text();
+            // Read response ONCE to prevent "body stream already read"
+            const respText = await resp.text();
             if (resp.ok) {
               try {
-                const resData = JSON.parse(respBodyText);
-                extractedText = resData.text || '';
+                const parsed = JSON.parse(respText);
+                extractedText = parsed.text || '';
               } catch {
-                extractedText = respBodyText;
+                extractedText = respText;
               }
             } else {
-              console.warn(`Server parse-pdf status ${resp.status}:`, respBodyText.slice(0, 100));
+              console.warn(`Server parse-pdf status ${resp.status}`);
             }
           } catch (serverErr) {
             console.warn('[PDF] Server fallback notice:', serverErr);
@@ -222,40 +179,48 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
 
         if (!extractedText.trim()) {
           throw new Error(
-            `Could not extract readable text from "${file.name}" (${fileSizeMb} MB). The PDF may be a scanned image or password-protected. You can paste the SOP text directly into the editor below or select a template.`
+            `Could not extract readable text from "${file.name}" (${fileSizeMb} MB). The PDF may be a scanned image or protected. You can paste the SOP text directly into the content editor below.`
           );
         }
 
+        setUploadProgress(100);
+        setUploadStage('Extraction complete! Document is ready to publish.');
         setRawText(extractedText);
         parseSectionsPreview(extractedText);
         setUploadSuccess(
-          `Extracted ${extractedText.length.toLocaleString()} characters${pageCount > 0 ? ` from ${pageCount} pages` : ''} of "${file.name}" (${fileSizeMb} MB). Document is ready to publish.`
+          `Extracted ${extractedText.length.toLocaleString()} characters${pageCount > 0 ? ` from ${pageCount} pages` : ''} of "${file.name}". Ready to publish into SOP repository.`
         );
       } catch (pdfErr: any) {
         console.error('PDF extraction error:', pdfErr);
         setUploadError(pdfErr?.message || 'Unable to extract text from PDF. You can paste SOP text directly into the editor below.');
       } finally {
-        setIsParsingPdf(false);
+        setTimeout(() => {
+          setIsProcessing(false);
+          setUploadProgress(0);
+          setUploadStage('');
+        }, 1200);
       }
       return;
     }
 
+    // Text / Markdown File Handling
+    setIsProcessing(true);
+    setUploadProgress(40);
+    setUploadStage('Reading text file...');
     const reader = new FileReader();
     reader.onload = async (event) => {
       const content = event.target?.result as string;
       setRawText(content);
       parseSectionsPreview(content);
+      setUploadProgress(100);
+      setUploadStage('File loaded.');
       setUploadSuccess(`Loaded "${file.name}" (${(file.size / 1024).toFixed(1)} KB). Ready to publish.`);
+      setTimeout(() => {
+        setIsProcessing(false);
+        setUploadProgress(0);
+      }, 500);
     };
     reader.readAsText(file);
-  };
-
-  const handleApplyTemplate = (tpl: typeof SAMPLE_TEMPLATES[0]) => {
-    setTitle(tpl.title);
-    setVersion(tpl.version);
-    setRawText(tpl.content);
-    setUploadError(null);
-    setUploadSuccess(null);
   };
 
   const handleSubmitUpload = async (e: React.FormEvent) => {
@@ -265,11 +230,16 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       return;
     }
 
-    setIsUploading(true);
+    setIsProcessing(true);
+    setUploadProgress(15);
+    setUploadStage('Preparing SOP sections and clauses for database...');
     setUploadError(null);
     setUploadSuccess(null);
 
     try {
+      setUploadProgress(45);
+      setUploadStage('Sending SOP to backend database & vector embedding pipeline...');
+
       const res = await fetch('/api/admin/documents/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -282,25 +252,66 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
         }),
       });
 
+      setUploadProgress(85);
+      setUploadStage('Validating index and activating repository...');
+
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to upload and index SOP document.');
       }
 
       const data = await res.json();
-      setUploadSuccess(`Successfully saved and indexed "${data.document.title}" (v${data.document.version}) in backend repository. All SOP texts are active for full-text AI search.`);
+      setUploadProgress(100);
+      setUploadStage('SOP successfully saved and indexed!');
+      setUploadSuccess(
+        `Successfully saved and indexed "${data.document.title}" (v${data.document.version}) in the live repository. All field engineers can now query this document.`
+      );
+
+      // Reset form
       setTitle('');
       setVersion('1.0');
       setRawText('');
       setArchiveOldVersionId('');
-      fetchDocumentsAndJobs();
+      setRevisingDocTitle(null);
+
+      await fetchDocumentsAndJobs();
       onDocumentsChanged?.();
     } catch (err: any) {
       console.error('Upload failed:', err);
       setUploadError(err.message || 'Error processing SOP document.');
     } finally {
-      setIsUploading(false);
+      setTimeout(() => {
+        setIsProcessing(false);
+        setUploadProgress(0);
+        setUploadStage('');
+      }, 1000);
     }
+  };
+
+  const handleStartRevision = (doc: SOPDocument) => {
+    setTitle(doc.title);
+    setArchiveOldVersionId(doc.id);
+    setRevisingDocTitle(doc.title);
+
+    // Auto-increment version
+    const parts = doc.version.split('.');
+    if (parts.length >= 2) {
+      const minor = parseInt(parts[1], 10);
+      setVersion(`${parts[0]}.${isNaN(minor) ? '1' : minor + 1}`);
+    } else {
+      setVersion(`${doc.version}.1`);
+    }
+
+    // Scroll to form
+    formRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleCancelRevision = () => {
+    setArchiveOldVersionId('');
+    setRevisingDocTitle(null);
+    setTitle('');
+    setVersion('1.0');
+    setRawText('');
   };
 
   const handleArchiveDoc = async (docId: string) => {
@@ -360,72 +371,174 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
     }
   };
 
+  const handleClearAllSampleSOPs = async () => {
+    if (!window.confirm('Are you sure you want to completely remove and clear all default/sample SOPs from the database and web app? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsClearingSamples(true);
+    try {
+      const res = await fetch('/api/admin/clear-all-samples', {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUploadSuccess(`Successfully purged ${data.removedCount || 'all'} default/sample SOP records. Only user-uploaded SOPs will exist.`);
+        fetchDocumentsAndJobs();
+        onDocumentsChanged?.();
+      } else {
+        throw new Error('Failed to purge sample SOPs');
+      }
+    } catch (err: any) {
+      setUploadError(err.message || 'Error purging sample SOPs');
+    } finally {
+      setIsClearingSamples(false);
+    }
+  };
+
   const activeDocs = documents.filter((d) => d.status === 'active');
   const archivedDocs = documents.filter((d) => d.status === 'archived');
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 text-slate-800">
-      {/* View Banner */}
+      {/* Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-gray-200 rounded-xl p-6 shadow-xs">
         <div>
           <div className="flex items-center gap-2 text-red-600 text-xs font-bold uppercase tracking-wider">
             <Layers className="w-4 h-4" />
-            <span>Dialog Axiata Field Operations Knowledge Base</span>
+            <span>Dialog Axiata PLC • Engineering Operations</span>
           </div>
           <h1 className="text-xl font-bold text-slate-900 mt-1">
-            SOP PDF Repository & Cross-Document Search Engine
+            SOP PDF Repository & Database Management
           </h1>
           <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
-            Upload PDF SOPs to the backend repository. Documents are securely saved and preserved. Field technician queries search the text across all available SOPs and reconstruct structured Dialog answers.
+            Upload approved Dialog Standard Operating Procedures (PDF or text). Uploaded documents are saved in the database, indexed into vector chunks, and can be updated with revised versions or deleted anytime.
           </p>
         </div>
-        <button
-          onClick={fetchDocumentsAndJobs}
-          className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold self-start sm:self-center transition-colors shadow-xs"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Refresh Database</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <button
+            onClick={handleClearAllSampleSOPs}
+            disabled={isClearingSamples}
+            className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-semibold transition-colors shadow-xs"
+            title="Permanently remove all default/sample SOPs"
+          >
+            {isClearingSamples ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            <span>Clear Default / Sample SOPs</span>
+          </button>
+          <button
+            onClick={fetchDocumentsAndJobs}
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition-colors shadow-xs"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
+      {/* Notifications */}
+      {uploadSuccess && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center justify-between gap-2 shadow-xs">
+          <div className="flex items-center gap-2 font-medium">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{uploadSuccess}</span>
+          </div>
+          <button onClick={() => setUploadSuccess(null)} className="text-emerald-600 hover:text-emerald-800">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {uploadError && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-800 rounded-xl text-xs flex items-center justify-between gap-2 shadow-xs">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+            <span>{uploadError}</span>
+          </div>
+          <button onClick={() => setUploadError(null)} className="text-red-600 hover:text-red-800">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Upload & Indexing Progress Bar */}
+      {isProcessing && (
+        <div className="bg-white border-2 border-red-500/40 rounded-xl p-5 shadow-md space-y-3 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 text-red-600 animate-spin" />
+              <span className="text-xs font-bold text-slate-900">{uploadStage || 'Processing SOP document...'}</span>
+            </div>
+            <span className="text-xs font-extrabold text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-100">
+              {uploadProgress}%
+            </span>
+          </div>
+
+          {/* Animated Progress Bar */}
+          <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden border border-slate-200">
+            <div
+              className="bg-linear-to-r from-red-600 via-rose-500 to-amber-500 h-3 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${Math.max(8, uploadProgress)}%` }}
+            />
+          </div>
+
+          <div className="grid grid-cols-4 text-[10px] font-semibold text-slate-500 pt-1">
+            <div className={`flex items-center gap-1 ${uploadProgress >= 25 ? 'text-emerald-600' : 'text-slate-400'}`}>
+              <Check className="w-3 h-3" />
+              <span>1. Load Document</span>
+            </div>
+            <div className={`flex items-center gap-1 ${uploadProgress >= 50 ? 'text-emerald-600' : 'text-slate-400'}`}>
+              <Check className="w-3 h-3" />
+              <span>2. Extract Clauses</span>
+            </div>
+            <div className={`flex items-center gap-1 ${uploadProgress >= 80 ? 'text-emerald-600' : 'text-slate-400'}`}>
+              <Check className="w-3 h-3" />
+              <span>3. Vector Indexing</span>
+            </div>
+            <div className={`flex items-center gap-1 ${uploadProgress >= 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
+              <Check className="w-3 h-3" />
+              <span>4. Database Store</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Upload Form & Previews */}
-        <div className="lg:col-span-7 space-y-6">
+        {/* Left Column: Upload & Revision Form */}
+        <div className="lg:col-span-7 space-y-6" ref={formRef}>
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Upload className="w-4 h-4 text-red-600" />
-                <span>Upload & Index New SOP Document</span>
+                <span>{revisingDocTitle ? 'Upload Revised Version of SOP' : 'Upload & Process New SOP Document'}</span>
               </h2>
               <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                Admin Privileges Active
+                Admin Verified
               </span>
             </div>
 
-            {/* Standard Engineering SOP Templates */}
-            <div className="mb-4 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>Standard Dialog SOP Ingestion Templates:</span>
+            {/* Revision Banner if Active */}
+            {revisingDocTitle && (
+              <div className="mb-4 p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-900">
+                <div className="flex items-center gap-2">
+                  <Edit3 className="w-4 h-4 text-amber-600 shrink-0" />
+                  <div>
+                    <span className="font-bold">Revising: </span>
+                    <span>"{revisingDocTitle}"</span>
+                    <p className="text-[11px] text-amber-700 mt-0.5">
+                      The previous version will automatically be archived in the database upon publishing this revised version.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCancelRevision}
+                  className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-[11px] font-bold"
+                >
+                  Cancel
+                </button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {SAMPLE_TEMPLATES.map((tpl, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleApplyTemplate(tpl)}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 hover:border-red-400 text-left transition-colors shadow-xs"
-                  >
-                    <div className="font-bold text-[11px] text-slate-900 truncate max-w-[240px]">
-                      {tpl.title.split(':')[0]}
-                    </div>
-                    <div className="text-[10px] text-slate-500 truncate max-w-[240px]">{tpl.title.split(':')[1]}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
+            )}
 
-            {/* Form */}
             <form onSubmit={handleSubmitUpload} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2">
@@ -436,7 +549,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="e.g. Dialog SOP-ENG-FTTH-02: Microduct Air-Blowing & Cabling"
+                    placeholder="e.g. Dialog SOP-ENG-MW-05: Microwave Link Alignment"
                     className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 shadow-xs"
                     required
                   />
@@ -449,28 +562,36 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                     type="text"
                     value={version}
                     onChange={(e) => setVersion(e.target.value)}
-                    placeholder="e.g. 1.0"
+                    placeholder="e.g. 1.0 or 2.1"
                     className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 shadow-xs"
                     required
                   />
                 </div>
               </div>
 
-              {/* Version Replacement / Archiving selector */}
+              {/* Replace / Archive Previous Version Dropdown */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Replace / Archive Previous Version (Optional)</span>
-                  <span className="text-[10px] text-slate-400">Excludes old document from retrieval</span>
+                  <span>Replace / Archive Previous Version in Database</span>
+                  <span className="text-[10px] text-slate-400">Archives previous version record</span>
                 </label>
                 <select
                   value={archiveOldVersionId}
-                  onChange={(e) => setArchiveOldVersionId(e.target.value)}
+                  onChange={(e) => {
+                    setArchiveOldVersionId(e.target.value);
+                    const found = activeDocs.find((d) => d.id === e.target.value);
+                    if (found) {
+                      setRevisingDocTitle(found.title);
+                    } else {
+                      setRevisingDocTitle(null);
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 shadow-xs"
                 >
-                  <option value="">-- None (Do not archive an existing document) --</option>
+                  <option value="">-- None (New independent SOP document) --</option>
                   {activeDocs.map((d, idx) => (
                     <option key={`opt-${d.id}-${idx}`} value={d.id}>
-                      Archive: {d.title} (Current v{d.version})
+                      Archive upon publish: {d.title} (v{d.version})
                     </option>
                   ))}
                 </select>
@@ -479,35 +600,27 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
               {/* File Drag and Drop / Selector */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Upload PDF / Text File
+                  Select SOP PDF Document *
                 </label>
-                <label className={`flex flex-col items-center justify-center border-2 border-dashed ${isParsingPdf ? 'border-red-400 bg-red-50/50' : 'border-gray-300 hover:border-red-500 bg-slate-50 hover:bg-slate-100'} rounded-xl p-5 cursor-pointer transition-colors`}>
-                  {isParsingPdf ? (
-                    <>
-                      <Loader2 className="w-7 h-7 text-red-600 animate-spin mb-1" />
-                      <span className="text-xs text-red-700 font-bold">
-                        Extracting & analyzing PDF sections...
-                      </span>
-                      <span className="text-[10px] text-red-500 mt-0.5">
-                        Parsing binary PDF streams via server parser
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <FileText className="w-7 h-7 text-slate-400 mb-1" />
-                      <span className="text-xs text-slate-800 font-bold">
-                        Click to select SOP file (.pdf, .txt, .md)
-                      </span>
-                      <span className="text-[10px] text-slate-500 mt-0.5">
-                        Native PDF text extraction & automatic section chunking
-                      </span>
-                    </>
-                  )}
+                <label
+                  className={`flex flex-col items-center justify-center border-2 border-dashed ${
+                    isProcessing
+                      ? 'border-red-400 bg-red-50/50'
+                      : 'border-gray-300 hover:border-red-500 bg-slate-50 hover:bg-slate-100'
+                  } rounded-xl p-6 cursor-pointer transition-colors`}
+                >
+                  <FileText className="w-8 h-8 text-red-500 mb-2" />
+                  <span className="text-xs text-slate-800 font-bold">
+                    Choose approved SOP PDF (.pdf, .txt, .md)
+                  </span>
+                  <span className="text-[11px] text-slate-500 mt-1">
+                    Client-side extraction runs in-browser to handle large files without network limits
+                  </span>
                   <input
                     type="file"
                     accept=".pdf,.txt,.md"
                     onChange={handleFileUpload}
-                    disabled={isParsingPdf || isUploading}
+                    disabled={isProcessing}
                     className="hidden"
                   />
                 </label>
@@ -518,76 +631,63 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                 <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                   <span>SOP Document Content (Plaintext / Extracted PDF) *</span>
                   <span className="text-[10px] text-slate-400">
-                    {rawText.length} characters • {rawText.split('\n').length} lines
+                    {rawText ? `${rawText.length.toLocaleString()} characters` : 'Paste or upload file'}
                   </span>
                 </label>
                 <textarea
+                  rows={9}
                   value={rawText}
                   onChange={(e) => setRawText(e.target.value)}
-                  placeholder="Paste SOP text here with section headers (Health & Safety, Tools & Materials, Procedure, Site Cleanup)..."
-                  rows={8}
+                  placeholder="Paste or review the extracted SOP content here (including Health & Safety, Tools & Materials, Procedures, Quality Checkpoints, and Site Cleanup)..."
                   className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 shadow-xs"
                   required
                 />
               </div>
 
-              {/* Status alerts */}
-              {uploadSuccess && (
-                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>{uploadSuccess}</div>
-                </div>
-              )}
-
-              {uploadError && (
-                <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-800 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                  <div>{uploadError}</div>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={isUploading || !title.trim() || !rawText.trim()}
-                className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
-              >
-                {isUploading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Extracting Sections & Generating Vector Chunks...</span>
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4" />
-                    <span>Publish SOP & Index into pgvector</span>
-                  </>
-                )}
-              </button>
+              {/* Submit Button */}
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>SOPs are saved to PostgreSQL database & pgvector store</span>
+                </span>
+                <button
+                  type="submit"
+                  disabled={isProcessing || !title.trim() || !rawText.trim()}
+                  className="px-5 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{revisingDocTitle ? 'Publish Revised SOP' : 'Publish & Save to Database'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
 
-          {/* Section Splitting Parser Live Preview */}
+          {/* Live Section Split Preview */}
           {previewSections.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-3">
-                <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-amber-500" />
-                  <span>Section-Aligned Chunking Preview ({previewSections.length} detected chunks)</span>
-                </div>
-                <span className="text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
-                  Matches SOP Headings
-                </span>
+            <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-red-600" />
+                  <span>Parsed Sections Preview ({previewSections.length} Chunks Detected)</span>
+                </h3>
+                <span className="text-[10px] text-slate-400 font-mono">Auto-Indexed</span>
               </div>
-              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
                 {previewSections.map((sec, idx) => (
-                  <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                    <div className="flex items-center justify-between text-[12px] font-bold text-slate-900 mb-1">
-                      <span>Chunk {idx + 1}: {sec.label}</span>
-                      <span className="text-[11px] text-slate-500 font-mono">vector(1536)</span>
+                  <div key={idx} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+                    <div className="font-bold text-[11px] text-slate-800 truncate mb-1">
+                      {idx + 1}. {sec.label}
                     </div>
-                    <div className="text-[12px] text-slate-600 line-clamp-3 font-mono leading-relaxed">
-                      {sec.text}
-                    </div>
+                    <div className="text-[10px] text-slate-500 line-clamp-2">{sec.text}</div>
                   </div>
                 ))}
               </div>
@@ -595,103 +695,80 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
           )}
         </div>
 
-        {/* Right Column: Active Library & Indexing Jobs */}
+        {/* Right Column: Repository Documents & Management */}
         <div className="lg:col-span-5 space-y-6">
-          {/* Recent Indexing Jobs */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-gray-100 pb-3 mb-4">
-              <Clock className="w-4 h-4 text-emerald-600" />
-              <span>Background Indexing Jobs</span>
-            </h2>
-
-            <div className="space-y-2.5 max-h-60 overflow-y-auto">
-              {indexingJobs.length === 0 ? (
-                <div className="text-center py-6 text-xs text-slate-400">
-                  No indexing jobs recorded
-                </div>
-              ) : (
-                indexingJobs.map((job, idx) => (
-                  <div
-                    key={`job-${job.id}-${idx}`}
-                    className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-bold text-slate-900 truncate max-w-[200px]">
-                        {job.document_title || job.document_id}
-                      </div>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase ${
-                          job.status === 'done'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : job.status === 'processing'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {job.status}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-                      <span>Sections: {job.extracted_sections_count ?? 'N/A'}</span>
-                      <span>{new Date(job.created_at).toLocaleTimeString()}</span>
-                    </div>
-                    {job.error && (
-                      <div className="mt-1 text-[11px] text-red-700 bg-red-50 p-1.5 rounded border border-red-200">
-                        Error: {job.error}
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
           {/* Active SOP Documents */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-gray-100 pb-3 mb-4">
-              <FileText className="w-4 h-4 text-red-600" />
-              <span>Active SOP Documents ({activeDocs.length})</span>
-            </h2>
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-4">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-red-600" />
+                <span>Active SOP Documents ({activeDocs.length})</span>
+              </h2>
+              <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                Live in Repository
+              </span>
+            </div>
 
-            <div className="space-y-3">
-              {activeDocs.map((doc, idx) => (
-                <div
-                  key={`doc-act-${doc.id}-${idx}`}
-                  className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <div className="font-bold text-xs text-slate-900 leading-snug">
-                        {doc.title}
+            {activeDocs.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 space-y-2">
+                <FileText className="w-8 h-8 text-slate-400 mx-auto" />
+                <p className="text-xs font-bold text-slate-700">No SOP Documents Uploaded Yet</p>
+                <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                  Upload an approved Dialog Axiata SOP PDF on the left. Once published, it will be saved to the database and indexed for AI consultations.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activeDocs.map((doc, idx) => (
+                  <div
+                    key={`doc-act-${doc.id}-${idx}`}
+                    className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-xs text-slate-900 leading-snug line-clamp-2">
+                          {doc.title}
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1 flex-wrap">
+                          <span className="font-mono font-bold text-red-600">v{doc.version}</span>
+                          <span>•</span>
+                          <span>{doc.chunk_count || 4} Chunks</span>
+                          <span>•</span>
+                          <span className="text-emerald-600 font-bold">Active</span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
-                        <span className="font-mono font-bold text-red-600">v{doc.version}</span>
-                        <span>•</span>
-                        <span>{doc.chunk_count || 4} Section Chunks</span>
-                        <span>•</span>
-                        <span>Status: <strong className="text-emerald-600 font-bold uppercase">Active</strong></span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleStartRevision(doc)}
+                          className="px-2 py-1 rounded-lg bg-white hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 transition-colors shadow-xs text-[11px] font-bold flex items-center gap-1"
+                          title="Upload a revised version of this SOP"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>Revise</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleArchiveDoc(doc.id)}
+                          className="p-1.5 rounded-lg bg-white hover:bg-amber-50 text-slate-500 hover:text-amber-600 border border-slate-200 transition-colors shadow-xs"
+                          title="Archive document"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteConfirmDoc(doc)}
+                          className="p-1.5 rounded-lg bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 transition-colors shadow-xs"
+                          title="Permanently delete from database"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        onClick={() => handleArchiveDoc(doc.id)}
-                        className="p-1.5 rounded-lg bg-white hover:bg-amber-50 text-slate-500 hover:text-amber-600 border border-slate-200 transition-colors shadow-xs"
-                        title="Archive document (exclude from future retrieval)"
-                      >
-                        <Archive className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirmDoc(doc)}
-                        className="p-1.5 rounded-lg bg-white hover:bg-red-50 text-slate-500 hover:text-red-600 border border-slate-200 transition-colors shadow-xs"
-                        title="Permanently delete SOP from repository"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Archived SOP Documents Audit History */}
@@ -699,7 +776,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs">
               <h2 className="text-sm font-bold text-slate-700 flex items-center gap-2 border-b border-gray-100 pb-3 mb-4">
                 <Archive className="w-4 h-4 text-slate-400" />
-                <span>Archived SOPs (Audit Trail)</span>
+                <span>Archived Previous SOPs ({archivedDocs.length})</span>
               </h2>
               <div className="space-y-2">
                 {archivedDocs.map((doc, idx) => (
@@ -727,13 +804,43 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                       </div>
                     </div>
                     <div className="text-[11px] text-slate-500 mt-1">
-                      v{doc.version} • Archived from vector search
+                      v{doc.version} • Archived
                     </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
+
+          {/* Processing / Indexing Jobs Log */}
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-xs">
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-gray-100 pb-3 mb-4">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Indexing Pipeline Jobs ({indexingJobs.length})</span>
+            </h2>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {indexingJobs.length === 0 ? (
+                <div className="text-xs text-slate-400 italic">No indexing tasks recorded yet</div>
+              ) : (
+                indexingJobs.slice(0, 8).map((job, idx) => (
+                  <div key={`job-${job.id}-${idx}`} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold text-slate-900 truncate pr-2">
+                        {job.document_title || job.document_id}
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">
+                        {job.status}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between">
+                      <span>Sections: {job.extracted_sections_count ?? 4}</span>
+                      <span>{new Date(job.created_at).toLocaleTimeString()}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -747,7 +854,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">Delete SOP Document</h3>
-                <p className="text-xs text-slate-500">Permanent repository removal</p>
+                <p className="text-xs text-slate-500">Permanent database & repository removal</p>
               </div>
             </div>
 
@@ -756,8 +863,8 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
               <p className="font-medium text-slate-800 line-clamp-2">
                 "{deleteConfirmDoc.title}" (v{deleteConfirmDoc.version})
               </p>
-              <p className="text-[12px] text-red-700 mt-1">
-                This will permanently delete this document and all associated text sections and vector chunks from the database and AI search engine.
+              <p className="text-[11px] text-red-700 mt-1">
+                This will permanently delete this document and all associated text sections and vector chunks from both the database and AI search engine.
               </p>
             </div>
 
