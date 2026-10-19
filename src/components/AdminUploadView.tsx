@@ -14,7 +14,10 @@ import {
   Edit3,
   Check,
   ShieldCheck,
-  X
+  X,
+  Eye,
+  Search,
+  Copy
 } from 'lucide-react';
 import { SOPDocument, IndexingJob, Profile } from '../types';
 import { extractTextFromPdfClient } from '../utils/pdfExtractor';
@@ -45,8 +48,20 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
   const [isDeleting, setIsDeleting] = useState(false);
   const [isClearingSamples, setIsClearingSamples] = useState(false);
 
-  // Section splitting preview
+  // Section splitting preview & Editor mode
+  const [editorTab, setEditorTab] = useState<'edit' | 'preview'>('edit');
   const [previewSections, setPreviewSections] = useState<Array<{ label: string; text: string }>>([]);
+
+  // Full Document Preview Modal
+  const [previewModalDoc, setPreviewModalDoc] = useState<{
+    doc: SOPDocument;
+    content?: string;
+    sections?: Array<{ section_label?: string; label?: string; content?: string; text?: string }>;
+    loading?: boolean;
+  } | null>(null);
+  const [previewModalTab, setPreviewModalTab] = useState<'sections' | 'raw'>('sections');
+  const [previewSearchTerm, setPreviewSearchTerm] = useState('');
+  const [copiedText, setCopiedText] = useState(false);
 
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -109,6 +124,39 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
     }
 
     setPreviewSections(sections);
+  };
+
+  const handlePreviewDoc = async (doc: SOPDocument) => {
+    setPreviewModalDoc({ doc, loading: true });
+    setPreviewSearchTerm('');
+    setCopiedText(false);
+    setPreviewModalTab('sections');
+    try {
+      const res = await fetch(`/api/admin/documents/${doc.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPreviewModalDoc({
+          doc,
+          content: data.text || '',
+          sections: data.sections || [],
+          loading: false,
+        });
+      } else {
+        setPreviewModalDoc({
+          doc,
+          content: 'No detailed text available in database for this document.',
+          sections: [],
+          loading: false,
+        });
+      }
+    } catch {
+      setPreviewModalDoc({
+        doc,
+        content: 'Failed to communicate with repository backend to load SOP text.',
+        sections: [],
+        loading: false,
+      });
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,11 +232,12 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
         }
 
         setUploadProgress(100);
-        setUploadStage('Extraction complete! Document is ready to publish.');
+        setUploadStage('Extraction complete! Document is ready to preview & publish.');
         setRawText(extractedText);
         parseSectionsPreview(extractedText);
+        setEditorTab('preview');
         setUploadSuccess(
-          `Extracted ${extractedText.length.toLocaleString()} characters${pageCount > 0 ? ` from ${pageCount} pages` : ''} of "${file.name}". Ready to publish into SOP repository.`
+          `Extracted ${extractedText.length.toLocaleString()} characters${pageCount > 0 ? ` from ${pageCount} pages` : ''} of "${file.name}". Click "Live Section Preview" or check the sections below, then Publish to save to database.`
         );
       } catch (pdfErr: any) {
         console.error('PDF extraction error:', pdfErr);
@@ -212,6 +261,7 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       const content = event.target?.result as string;
       setRawText(content);
       parseSectionsPreview(content);
+      setEditorTab('preview');
       setUploadProgress(100);
       setUploadStage('File loaded.');
       setUploadSuccess(`Loaded "${file.name}" (${(file.size / 1024).toFixed(1)} KB). Ready to publish.`);
@@ -626,22 +676,78 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                 </label>
               </div>
 
-              {/* SOP Raw Text Content */}
+              {/* SOP Document Content: Edit vs Live Section Preview Tabs */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>SOP Document Content (Plaintext / Extracted PDF) *</span>
-                  <span className="text-[10px] text-slate-400">
-                    {rawText ? `${rawText.length.toLocaleString()} characters` : 'Paste or upload file'}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setEditorTab('edit')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
+                        editorTab === 'edit'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      ✍️ Edit SOP Text
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditorTab('preview')}
+                      className={`px-3 py-1 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        editorTab === 'preview'
+                          ? 'bg-red-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Live Section Preview ({previewSections.length})</span>
+                    </button>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-mono">
+                    {rawText ? `${rawText.length.toLocaleString()} characters` : 'No text loaded'}
                   </span>
-                </label>
-                <textarea
-                  rows={9}
-                  value={rawText}
-                  onChange={(e) => setRawText(e.target.value)}
-                  placeholder="Paste or review the extracted SOP content here (including Health & Safety, Tools & Materials, Procedures, Quality Checkpoints, and Site Cleanup)..."
-                  className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 shadow-xs"
-                  required
-                />
+                </div>
+
+                {editorTab === 'edit' ? (
+                  <textarea
+                    rows={9}
+                    value={rawText}
+                    onChange={(e) => setRawText(e.target.value)}
+                    placeholder="Paste or review the extracted SOP content here (including Health & Safety, Tools & Materials, Procedures, Quality Checkpoints, and Site Cleanup)..."
+                    className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-mono text-slate-900 placeholder-slate-400 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 shadow-xs"
+                    required
+                  />
+                ) : (
+                  <div className="border border-gray-200 rounded-xl bg-slate-50 p-4 max-h-80 overflow-y-auto space-y-3">
+                    {previewSections.length === 0 ? (
+                      <div className="text-center py-8 text-slate-400 text-xs">
+                        No sections detected yet. Upload an approved Dialog SOP PDF above or paste text in the editor.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {previewSections.map((sec, idx) => (
+                          <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 shadow-xs">
+                            <div className="flex items-center justify-between text-xs font-bold text-slate-900 pb-1.5 border-b border-gray-100 mb-1.5">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-5 h-5 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-[10px] font-bold">
+                                  {idx + 1}
+                                </span>
+                                <span>{sec.label}</span>
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                {sec.text.length} chars
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-700 whitespace-pre-wrap font-mono leading-relaxed max-h-36 overflow-y-auto bg-slate-50 p-2.5 rounded">
+                              {sec.text}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Submit Button */}
@@ -740,6 +846,15 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           type="button"
+                          onClick={() => handlePreviewDoc(doc)}
+                          className="px-2 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-200 transition-colors shadow-xs text-[11px] font-bold flex items-center gap-1"
+                          title="Preview full SOP document and sections"
+                        >
+                          <Eye className="w-3 h-3 text-red-600" />
+                          <span>Preview</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleStartRevision(doc)}
                           className="px-2 py-1 rounded-lg bg-white hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 transition-colors shadow-xs text-[11px] font-bold flex items-center gap-1"
                           title="Upload a revised version of this SOP"
@@ -787,6 +902,15 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                     <div className="flex items-center justify-between">
                       <div className="font-semibold text-slate-700 truncate pr-2">{doc.title}</div>
                       <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handlePreviewDoc(doc)}
+                          className="px-2 py-1 rounded-md bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200 transition-colors shadow-xs text-[11px] font-bold flex items-center gap-1"
+                          title="Preview archived SOP text and clauses"
+                        >
+                          <Eye className="w-3 h-3 text-slate-500" />
+                          <span>Preview</span>
+                        </button>
                         <button
                           onClick={() => handleRestoreDoc(doc.id)}
                           className="p-1 rounded-md bg-white hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 border border-slate-200 transition-colors shadow-xs"
@@ -895,6 +1019,224 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full SOP Document Preview Modal */}
+      {previewModalDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white border border-gray-200 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded bg-red-600 flex items-center justify-center font-bold text-white italic text-base shrink-0 shadow-xs">
+                  D
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-white text-sm truncate">
+                      {previewModalDoc.doc.title}
+                    </h3>
+                    <span className="font-mono text-xs px-2 py-0.5 rounded bg-red-950 text-red-300 border border-red-800 font-bold">
+                      v{previewModalDoc.doc.version}
+                    </span>
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                      {previewModalDoc.doc.status || 'Active'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Dialog Axiata Approved Field Engineering SOP Document
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewModalDoc(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Close preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Controls & Search Bar */}
+            <div className="px-6 py-3 bg-slate-50 border-b border-gray-200 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+              <div className="flex items-center gap-1.5 bg-slate-200/80 p-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setPreviewModalTab('sections')}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                    previewModalTab === 'sections'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-red-600" />
+                    <span>Parsed Sections ({previewModalDoc.sections?.length || previewSections.length || 0})</span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewModalTab('raw')}
+                  className={`px-3 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                    previewModalTab === 'raw'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Full Raw Text ({previewModalDoc.content?.length.toLocaleString() || 0} Chars)</span>
+                  </span>
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-1 max-w-sm justify-end">
+                <div className="relative flex-1 max-w-xs">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={previewSearchTerm}
+                    onChange={(e) => setPreviewSearchTerm(e.target.value)}
+                    placeholder="Search within SOP..."
+                    className="w-full pl-8 pr-3 py-1 bg-white border border-gray-300 rounded-lg text-xs placeholder-slate-400 focus:outline-none focus:border-red-500"
+                  />
+                  {previewSearchTerm && (
+                    <button
+                      onClick={() => setPreviewSearchTerm('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const textToCopy = previewModalDoc.content || '';
+                    navigator.clipboard.writeText(textToCopy);
+                    setCopiedText(true);
+                    setTimeout(() => setCopiedText(false), 2000);
+                  }}
+                  className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-gray-300 rounded-lg text-xs font-semibold text-slate-700 flex items-center gap-1 transition-colors cursor-pointer"
+                  title="Copy full text to clipboard"
+                >
+                  {copiedText ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      <span className="text-emerald-700">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 text-slate-500" />
+                      <span>Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content Scroll Area */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4 bg-slate-50">
+              {previewModalDoc.loading ? (
+                <div className="py-16 text-center space-y-3">
+                  <Loader2 className="w-8 h-8 text-red-600 animate-spin mx-auto" />
+                  <p className="text-xs font-semibold text-slate-700">Loading document from database...</p>
+                </div>
+              ) : previewModalTab === 'sections' ? (
+                <div>
+                  {(() => {
+                    const rawSections = (previewModalDoc.sections && previewModalDoc.sections.length > 0)
+                      ? previewModalDoc.sections
+                      : (previewModalDoc.content ? [
+                          { label: 'Full SOP Content', text: previewModalDoc.content }
+                        ] : []);
+
+                    const filtered = previewSearchTerm.trim()
+                      ? rawSections.filter(s => {
+                          const lbl = s.section_label || s.label || '';
+                          const txt = s.content || s.text || '';
+                          const q = previewSearchTerm.toLowerCase();
+                          return lbl.toLowerCase().includes(q) || txt.toLowerCase().includes(q);
+                        })
+                      : rawSections;
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="py-12 text-center text-slate-400 text-xs">
+                          {previewSearchTerm ? `No sections matching "${previewSearchTerm}"` : 'No sections available'}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="space-y-4">
+                        {filtered.map((sec, idx) => {
+                          const label = sec.section_label || sec.label || `Section ${idx + 1}`;
+                          const text = sec.content || sec.text || '';
+                          return (
+                            <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 shadow-xs space-y-2">
+                              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                <span className="font-bold text-xs text-slate-900 flex items-center gap-2">
+                                  <span className="w-6 h-6 rounded-lg bg-red-100 text-red-700 flex items-center justify-center text-xs font-bold">
+                                    {idx + 1}
+                                  </span>
+                                  <span>{label}</span>
+                                </span>
+                                <span className="text-[11px] text-slate-400 font-mono">
+                                  {text.length.toLocaleString()} characters
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-800 font-mono whitespace-pre-wrap leading-relaxed max-h-72 overflow-y-auto bg-slate-50/80 p-3 rounded-lg border border-slate-100">
+                                {text}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-xs">
+                  <div className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed max-h-[60vh] overflow-y-auto p-2">
+                    {previewModalDoc.content || 'No text content available'}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 bg-white border-t border-gray-200 flex items-center justify-between shrink-0">
+              <span className="text-xs text-slate-500 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>Verified Dialog Axiata Standard Operating Procedure</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const docToRevise = previewModalDoc.doc;
+                    setPreviewModalDoc(null);
+                    handleStartRevision(docToRevise);
+                  }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-red-50 text-slate-700 hover:text-red-700 border border-slate-200 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Revise This SOP</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewModalDoc(null)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer"
+                >
+                  Close Preview
+                </button>
+              </div>
             </div>
           </div>
         </div>

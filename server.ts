@@ -298,6 +298,21 @@ app.post('/api/admin/documents/restore', async (req, res) => {
   }
 });
 
+app.get('/api/admin/documents/:id', async (req, res) => {
+  try {
+    const documentId = req.params.id;
+    const docData = await sopStore.getDocumentText(documentId);
+    if (!docData) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    const sections = (sopStore as any).splitIntoSections ? (sopStore as any).splitIntoSections(docData.text) : [];
+    res.json({ ...docData, sections });
+  } catch (err: any) {
+    console.error('Error fetching document details:', err);
+    res.status(500).json({ error: 'Failed to retrieve document details' });
+  }
+});
+
 app.delete('/api/admin/documents/:id', async (req, res) => {
   try {
     const documentId = req.params.id;

@@ -1,32 +1,25 @@
 import * as pdfjsLib from 'pdfjs-dist';
+// Vite special ?url import embeds the worker asset directly from node_modules
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-// In Vite, importing with ?url provides a local bundled asset URL for the worker.
-// Fallback to CDN or disabled worker if URL import fails in any environment.
 let workerInitialized = false;
 
 function initPdfWorker() {
   if (workerInitialized || typeof window === 'undefined') return;
   try {
-    // Attempt local bundled worker
-    pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-      'pdfjs-dist/build/pdf.worker.min.mjs',
-      import.meta.url
-    ).toString();
-    workerInitialized = true;
-  } catch (err) {
-    try {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+    if (pdfWorkerUrl) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
       workerInitialized = true;
-    } catch {
-      // Worker options can remain unset; getDocument will handle disableWorker mode
     }
+  } catch (err) {
+    console.warn('[PDFExtractor] Could not bind local worker URL, fallback to inline engine:', err);
   }
 }
 
 /**
  * Extracts text from a PDF file directly inside the browser.
  * This completely avoids sending large binary PDF files across the network,
- * eliminating HTTP 413 (Payload Too Large) and Vercel 4.5MB serverless limits.
+ * eliminating HTTP 413 (Payload Too Large) and proxy/serverless body limits.
  */
 export async function extractTextFromPdfClient(
   file: File,
@@ -40,7 +33,7 @@ export async function extractTextFromPdfClient(
   const arrayBuffer = await file.arrayBuffer();
   const uint8 = new Uint8Array(arrayBuffer);
 
-  // Strategy 1: PDF.js with standard configuration
+  // Strategy 1: PDF.js with bundled worker
   try {
     onProgress?.(25, 'Parsing document structure with PDF engine...');
     const loadingTask = pdfjsLib.getDocument({
@@ -54,7 +47,7 @@ export async function extractTextFromPdfClient(
     const pageTexts: string[] = [];
 
     for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
-      const pageProgress = 25 + Math.round((pageNum / pageCount) * 50);
+      const pageProgress = 25 + Math.round((pageNum / Math.max(pageCount, 1)) * 55);
       onProgress?.(pageProgress, `Extracting page ${pageNum} of ${pageCount}...`);
 
       try {
@@ -76,16 +69,16 @@ export async function extractTextFromPdfClient(
 
     const fullText = pageTexts.join('\n\n');
     if (fullText.trim().length > 30) {
-      onProgress?.(85, 'Formatting and indexing technical sections...');
+      onProgress?.(95, 'Formatting and indexing technical sections...');
       return { text: fullText, pageCount };
     }
   } catch (err: any) {
-    console.warn('[PDFClient] Primary PDF.js extraction notice, attempting fallback engine:', err?.message || err);
+    console.warn('[PDFClient] Primary worker extraction notice, attempting fallback engine:', err?.message || err);
   }
 
-  // Strategy 2: PDF.js with disabled worker (works in restricted iframes and restrictive CSPs)
+  // Strategy 2: PDF.js with disabled/inline worker (works in restricted iframes and restrictive CSPs)
   try {
-    onProgress?.(40, 'Running direct engine fallback...');
+    onProgress?.(50, 'Running direct engine fallback...');
     const loadingTask = pdfjsLib.getDocument({
       data: uint8,
       isEvalSupported: false,
@@ -122,7 +115,7 @@ export async function extractTextFromPdfClient(
   }
 
   // Strategy 3: Fast binary text token scanner (for uncompressed or partially compressed streams)
-  onProgress?.(70, 'Scanning text token streams...');
+  onProgress?.(75, 'Scanning text token streams...');
   try {
     let latin1 = '';
     const chunkSize = 65536;
