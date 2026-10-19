@@ -315,28 +315,28 @@ export const ChatView: React.FC<ChatViewProps> = ({
                       <ReactMarkdown
                         components={{
                           h3: ({ children }) => (
-                            <div className="font-bold text-xs uppercase tracking-wide text-slate-400 mb-1.5 mt-3 flex items-center gap-1.5">
+                            <div className="font-bold text-sm text-slate-900 mb-2.5 mt-5 flex items-center gap-1.5 pb-1 border-b border-gray-100">
                               {children}
                             </div>
                           ),
                           ul: ({ children }) => (
-                            <ul className="list-disc pl-5 space-y-1.5 text-slate-700 my-1">
+                            <ul className="list-disc pl-5 space-y-2 text-slate-700 my-2">
                               {children}
                             </ul>
                           ),
                           ol: ({ children }) => (
-                            <ol className="list-decimal pl-5 space-y-1.5 text-slate-700 my-1">
+                            <ol className="list-decimal pl-5 space-y-2 text-slate-700 my-2">
                               {children}
                             </ol>
                           ),
                           li: ({ children }) => (
-                            <li className="text-slate-700 leading-relaxed text-sm">{children}</li>
+                            <li className="text-slate-800 leading-relaxed text-sm pl-0.5">{children}</li>
                           ),
                           strong: ({ children }) => (
-                            <strong className="font-semibold text-slate-900">{children}</strong>
+                            <strong className="font-bold text-slate-950">{children}</strong>
                           ),
                           p: ({ children }) => (
-                            <p className="mb-2 leading-relaxed text-slate-700 text-sm">{children}</p>
+                            <p className="mb-2 leading-relaxed text-slate-800 text-sm">{children}</p>
                           ),
                         }}
                       >

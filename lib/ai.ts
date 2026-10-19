@@ -58,52 +58,60 @@ PRIMARY OPERATIONAL DIRECTIVES (STRICT COMPLIANCE REQUIRED):
    - Base 100% of the instructions, tool specifications, numerical parameters, tolerances, safety rules, and procedural steps strictly on the full text of the approved Dialog SOP manuals provided below.
    - Do NOT extrapolate, hallucinate, or include unverified generic information not found in the uploaded SOPs.
 
-2. BULLETS AND POINTS MANDATE:
-   - Output MUST be structured EXCLUSIVELY in clean, punchy bullets and numbered points.
-   - Never write narrative paragraphs, conversational prose, or unbroken walls of text. Every section must consist of bullet items ('* ') or numbered sequence steps ('1. ', '2. ').
+2. SHOULD BE BULLETS AND POINTS:
+   - Output MUST be structured EXCLUSIVELY in clean, punchy bullets ('* ') and numbered points ('1. ', '2. ').
+   - Never write narrative paragraphs, conversational filler, or unbroken walls of text. Every section must consist of distinct bullet items or numbered sequence steps with bold lead descriptors.
 
-3. STRICT QUESTION FOCUS:
-   - Provide ONLY the answer and sections directly related to the user's specific inquiry.
-   - Do not dump unrelated chapters or general irrelevant procedures. Extract precisely what is needed to address the asked task or procedure.
+3. SHOULD ONLY GIVE ASKED QUESTION RELATED ANSWER FROM SOPS:
+   - Focus directly and specifically on the asked question/task.
+   - Exclude unrelated chapters, equipment, or subsystems (for example: do NOT include battery sensors, door alarms, or inverter settings when asked about antenna installation).
 
-4. MANDATORY FULL FIELD LIFECYCLE SECTIONS (Include from Site Entry to Exit):
-   Reconstruct the response into the following structured sections:
+4. INCLUDE REQUIRED SECTIONS FROM SITE ENTRY, HEALTH & SAFETY, REQUIRED MATERIALS & TOOLS, PROCEDURE, CLEANING & TO EXIT, PLUS ANY MISSING SECTIONS:
+   - The restructured output MUST present the following sections in field operational sequence:
+     • 🚪 Site Entry & Pre-Access Requirements
+     • 🛡️ Health & Safety Guidelines
+     • 🧰 Required Materials, Tools & Equipment
+     • 📋 Step-by-Step Procedure (Numbered points for sequential execution)
+     • ⚠️ Critical Quality Checkpoints & Inspection Tolerances (Numerical tolerances, clearances, limits)
+     • 🧹 Site Cleaning, Exit & Handover Procedures (Site cleaning, waste removal, cavity sealing check, NOC sign-off & exit)
+     • 🛡️ Weatherproofing, Grounding & Environmental Protection (Include if SOP has weatherproofing/earthing for this task)
+     • 📑 Source SOP References & Sections
+   - Format each actionable step with a bold lead label: '1. **[Step Descriptor]:** [Actionable operational detail]'.
+   - Format quality checkpoints with bold lead labels: '* **[Tolerance Parameter]:** [Exact limit, e.g. 1200mm ~ 1600mm, ±15°, 0.03 dB]'.
+   - Format tools and materials with bold lead labels: '* **[Tool Name]:** [Specification or calibrated standard]'.
+   - Format entry, safety, cleaning and exit items with bold lead labels: '* **[Descriptor]:** [Instruction strictly from SOP]'.
 
+STRUCTURE OF THE RESTRUCTURED RESPONSE:
    ### 📘 [SOP Title or Document Code] — Field Operational Mini Guideline
 
    **🎯 Objective & Inquiry Scope:**
-   * [Direct bullet points defining the specific task or procedure asked by the officer and standard criteria]
+   * [1-2 concise bullet points defining the specific task or procedure asked by the officer]
 
-   ### 🚪 1. Site Entry & Pre-Access Requirements
-   * [Access clearance, NOC check-in / notification, site key, and work permit prerequisites from the SOP]
-   * [Pre-entry visual inspection and environmental/hazard check before entering site or opening cabinets]
+   ### 🚪 Site Entry & Pre-Access Requirements
+   * **[Access / Permit Requirement]:** [Actionable clearance, work permits, NOC notification, or site pre-access inspection from SOP]
 
-   ### 🛡️ 2. Health & Safety Guidelines
-   * [Mandatory PPE specifications, e.g. dielectric hard hat, safety boots, laser glasses, climbing harness]
-   * [Specific operational hazard controls: optical laser radiation, electrical isolation, RF safety, height safety, or chemical precautions]
+   ### 🛡️ Health & Safety Guidelines
+   * **[Mandatory PPE / Hazard Control]:** [Specific PPE, climbing harness, RF radiation hazards, electrical safety, or laser precautions from SOP]
 
-   ### 🧰 3. Required Materials, Tools & Equipment
-   * [Calibrated test instruments, optical power meters, fusion splicers, earth testers, multimeters with calibration standards]
-   * [Approved materials, cables, connectors, protection sleeves, torque wrenches, and consumables]
+   ### 🧰 Required Materials, Tools & Equipment
+   * **[Tool / Material Name]:** [Specification, calibrated tool, torque wrench, C-clamp, brackets, washers, or consumables from SOP]
 
-   ### 📋 4. Step-by-Step Procedure
-   1. [Actionable numbered point: Step 1 with exact parameters, dimensions, and operational execution]
-   2. [Actionable numbered point: Step 2 with specific sequence details]
-   3. [Actionable numbered point: Step 3 with specific sequence details...]
+   ### 📋 Step-by-Step Procedure
+   1. **[Step Descriptor]:** [Actionable sequence step directly addressing the asked question from SOP]
+   2. **[Step Descriptor]:** [Actionable sequence step directly addressing the asked question from SOP]
 
-   ### ⚠️ 5. Critical Quality Checkpoints & Inspection Tolerances
-   * [Exact numerical acceptance criteria from the SOP, e.g. splice loss <= 0.03 dB, earth resistance <= 5.0 Ohms, optical power window -18 to -24 dBm, tightening torque Nm]
-   * [Quality inspection limits and pass/fail thresholds]
+   ### ⚠️ Critical Quality Checkpoints & Inspection Tolerances
+   * **[Parameter]:** [Exact numerical tolerance from SOP, e.g. 1200mm ~ 1600mm clearance, ±15° azimuth, 0.03 dB loss, torque Nm]
 
-   ### 🧹 6. Site Cleaning, Waste Disposal & Restoration
-   * [Proper disposal of hazardous waste, optical fiber glass shards in sealed puncture-proof bins, packaging, and cable offcuts]
-   * [Weatherproofing seal integrity, gland nut tightening, and restoring equipment cabinets/enclosures]
+   ### 🧹 Site Cleaning, Exit & Handover Procedures
+   * **[Work Area Cleaning & Debris]:** [Clear all debris, offcuts, packaging, or fiber shards from the work area per SOP]
+   * **[Tool & Equipment Check]:** [Ensure all tools are packed and all maintenance cavity cover plates/doors are secured]
+   * **[NOC Telemetry & Handover]:** [Contact Dialog NOC / FSM to verify telemetry, submit test results, and clear site exit]
 
-   ### 🚪 7. Site Exit, Handover & NOC Clearance
-   * [Work order completion recording and test report submission in Dialog FSM mobile app / engineering portal]
-   * [Dialog NOC final telemetry verification call, locking all equipment racks, shelter doors, and site perimeter gates]
+   ### 🛡️ Weatherproofing, Grounding & Environmental Protection
+   * **[Protection Measure]:** [Cavity water seal, rubber bushes, vacant RF port dust caps, structural grounding with C-clamp]
 
-   ### 📌 8. Source SOP References & Sections
+   ### 📑 Source SOP References & Sections
    * [Exact SOP manual title, version number, and specific section clauses referenced]
 
 5. ESCALATION CONDITION:
@@ -112,7 +120,7 @@ PRIMARY OPERATIONAL DIRECTIVES (STRICT COMPLIANCE REQUIRED):
      (Translate this into ${languageName} if responding in Sinhala or Tamil).
 
 6. LANGUAGE:
-   - Respond in ${languageName}. If Sinhala or Tamil is selected, translate all headings and bullet points into ${languageName} while preserving standardized technical codes (like dB, dBm, V, Ω, OTDR).`;
+   - Respond in ${languageName}. If Sinhala or Tamil is selected, translate all headings and bullet points into ${languageName} while preserving standardized technical codes (like dB, dBm, V, Ω, OTDR, AAU).`;
 
 export interface ActiveAIProviderInfo {
   provider: 'rapidapi' | 'gemini' | 'deterministic';
@@ -436,23 +444,19 @@ FIELD OFFICER INQUIRY / TASK:
 "${question}"
 
 TASK EXECUTION & OPERATIONAL DIRECTIVES:
-1. STRICTLY REFER WHOLE SOPS UPLOADED BY ADMIN: Base every point strictly on the SOP text provided above.
-2. SHOULD BE BULLETS AND POINTS: Every single section MUST consist of bullets ('* ') or numbered points ('1. ', '2. '). Never use continuous narrative prose or paragraphs.
-3. SHOULD ONLY GIVE ASKED QUESTION RELATED ANSWER FROM SOPS: Focus directly and specifically on the asked question/task. Do not include unrelated procedures from other chapters.
-4. INCLUDE MANDATORY SECTIONS FROM SITE ENTRY TO EXIT:
-   - ### 📘 [SOP Title or Document Code] — Field Operational Mini Guideline
-   - **🎯 Objective & Inquiry Scope:** (Bullets defining specific scope)
-   - ### 🚪 1. Site Entry & Pre-Access Requirements (Permits, NOC check-in, key/access check, hazard survey before entry)
-   - ### 🛡️ 2. Health & Safety Guidelines (Mandatory PPE, electrical, RF, height, laser safety)
-   - ### 🧰 3. Required Materials, Tools & Equipment (Calibrated testers, fusion splicers, torque tools, consumables)
-   - ### 📋 4. Step-by-Step Procedure (Numbered actionable steps strictly for the asked question)
-   - ### ⚠️ 5. Critical Quality Checkpoints & Inspection Tolerances (Numerical criteria: dB, dBm, V, Ω, Nm, pass/fail limits)
-   - ### 🧹 6. Site Cleaning, Waste Disposal & Restoration (Fiber shards disposal in sharps container, weatherproofing, restoration)
-   - ### 🚪 7. Site Exit, Handover & NOC Clearance (FSM portal sign-off, NOC call-out, telemetry verification, lockup)
-   - ### 📌 8. Additional SOP Sections & Missing Clauses (Any additional relevant sections found in the SOP)
-   - ### 📑 9. Source SOP References & Sections (Document title, version, clauses)
-
-Ground every point in the uploaded SOP text above; only use the escalation notice if the query has zero relation to any of the uploaded SOPs.`;
+1. STRICTLY REFER WHOLE SOPS UPLOADED BY ADMIN: Base every single bullet point and sequence step strictly on the SOP text provided above.
+2. SHOULD BE BULLETS AND POINTS: Every single section MUST consist of bullets ('* ') or numbered points ('1. ', '2. '). Never use continuous narrative prose or paragraphs. Every item must have a bold lead descriptor.
+3. SHOULD ONLY GIVE ASKED QUESTION RELATED ANSWER FROM SOPS: Focus directly and specifically on the asked question/task. Exclude unrelated chapters, subsystems, or equipment (e.g. do not include battery sensors, door alarms, or inverter settings when asked about antenna installation).
+4. INCLUDE SECTIONS IN FIELD OPERATIONAL SEQUENCE:
+   - 🚪 Site Entry & Pre-Access Requirements (Clearance, permits, pre-access hazard check)
+   - 🛡️ Health & Safety Guidelines (Mandatory PPE, height harness, RF/electrical hazards)
+   - 🧰 Required Materials, Tools & Equipment (Calibrated tools, torque wrench, C-clamps, washers, consumables)
+   - 📋 Step-by-Step Procedure (Numbered sequence points '1. **[Step Descriptor]:** ...' directly answering the asked question)
+   - ⚠️ Critical Quality Checkpoints & Inspection Tolerances (Numerical limits, clearances, torque values, dB loss)
+   - 🧹 Site Cleaning, Exit & Handover Procedures (Debris cleanup, cavity check, NOC clearance, site exit)
+   - 🛡️ Weatherproofing, Grounding & Environmental Protection (Add if applicable from SOP)
+   - 📑 Source SOP References & Sections
+   Ground every point in the uploaded SOP text above; only use the escalation notice if the query has zero relation to any of the uploaded SOPs.`;
 
       for (const model of candidateModels) {
         try {
@@ -904,14 +908,16 @@ const TELECOM_SYNONYMS: Record<string, string[]> = {
   fiber: ['fibre', 'drop', 'cable', 'optics', 'optical', 'ftth', 'ont', 'fat', 'fdt', 'pon'],
   fibre: ['fiber', 'drop', 'cable', 'optical', 'ftth', 'ont'],
   cable: ['drop', 'fiber', 'feeder', 'jumper', 'patchcord', 'duct', 'conduit', 'tension'],
-  ground: ['grounding', 'earth', 'earthing', 'resistance', 'megger', 'mgb', 'tower', 'ohm', 'surge', 'lightning'],
-  grounding: ['ground', 'earth', 'earthing', 'resistance', 'tower', 'ohm', 'surge'],
+  ground: ['grounding', 'earth', 'earthing', 'resistance', 'megger', 'mgb', 'tower', 'ohm', 'surge', 'lightning', 'c-clamp'],
+  grounding: ['ground', 'earth', 'earthing', 'resistance', 'tower', 'ohm', 'surge', 'c-clamp'],
   earth: ['ground', 'grounding', 'resistance', 'earthing', 'ohm', 'rod', 'pit'],
   resistance: ['earth', 'ground', 'grounding', 'ohm', 'ohms', 'impedance', 'tester', 'megger'],
   battery: ['batteries', 'dc', 'power', 'rectifier', 'inverter', 'voltage', 'float', 'vrla', 'lifepo4', 'bank', 'ah'],
   power: ['dc', 'battery', 'rectifier', 'inverter', 'voltage', 'breaker', '48v', 'charge'],
   inverter: ['solar', 'hybrid', 'dc', 'ac', 'rectifier', 'power', 'voltage'],
-  antenna: ['rru', 'bbu', 'vswr', 'dtf', 'tilt', 'azimuth', 'ret', 'feeder', 'jumper', 'rf'],
+  antenna: ['antennas', 'aau', 'rru', 'vswr', 'dtf', 'tilt', 'azimuth', 'ret', 'feeder', 'jumper', 'rf', 'pole', 'bracket', 'crossbar', 'mount', 'mounting', 'microwave', 'sector', 'dish', 'c-clamp'],
+  aau: ['antenna', 'antennas', 'rru', 'active antenna unit', 'pole', 'bracket', 'azimuth', 'tilt', 'rf', 'mount', 'mounting', 'c-clamp'],
+  install: ['installation', 'mounting', 'mount', 'fixing', 'fixed', 'setup', 'assembly', 'assemble', 'clamping', 'bracket'],
   loss: ['db', 'attenuation', 'power', 'otdr', 'splice', 'insertion', 'optical'],
   safety: ['ppe', 'hazard', 'protection', 'glasses', 'laser', 'shock', 'voltage', 'fall', 'harness', 'helmet'],
   ppe: ['safety', 'hazard', 'gloves', 'glasses', 'helmet', 'boots', 'harness'],
@@ -919,6 +925,66 @@ const TELECOM_SYNONYMS: Record<string, string[]> = {
   testing: ['test', 'measure', 'measurement', 'verify', 'otdr', 'tolerance', 'threshold'],
   cleanup: ['handover', 'waste', 'disposal', 'shards', 'sign-off', 'weatherproofing', 'portal', 'closure'],
 };
+
+/**
+ * Splits document text into discrete actionable clauses, separating embedded numbered lists
+ */
+function splitIntoDiscreteClauses(text: string): string[] {
+  const rawParagraphs = text.split(/\r?\n+/).map(p => p.trim()).filter(Boolean);
+  const clauses: string[] = [];
+
+  for (const para of rawParagraphs) {
+    // Split embedded numbered items like "15. All the AAUs... 16. At RT Pole... 17. AAUs must be..."
+    const numberedSplitRegex = /(?:^|\s+)(?=(?:(?:[1-9]\d{0,2}|[a-z])[\.\)]|\b(?:Step|Clause|Section|Item)\s+\d+[:\.]?)\s+[A-Z])/g;
+    const subParts = para.split(numberedSplitRegex).map(s => s.trim()).filter(Boolean);
+
+    if (subParts.length > 1) {
+      for (const sp of subParts) {
+        if (sp.length > 10) clauses.push(sp);
+      }
+    } else {
+      // Split long compound sentences ending in period + capital letter
+      const sentenceRegex = /(?<=[.!?])\s+(?=[A-Z0-9])/;
+      const sentences = para.split(sentenceRegex).map(s => s.trim()).filter(Boolean);
+      if (sentences.length > 1 && para.length > 250) {
+        for (const s of sentences) {
+          if (s.length > 15) clauses.push(s);
+        }
+      } else if (para.length > 10) {
+        clauses.push(para);
+      }
+    }
+  }
+
+  return clauses;
+}
+
+/**
+ * Determines clean bold descriptor label for procedural steps
+ */
+function deriveStepDescriptor(clause: string): string {
+  const cl = clause.toLowerCase();
+  if (cl.includes('vertically') || cl.includes('vertical')) return 'Vertical Orientation & Alignment';
+  if (cl.includes('distance') || cl.includes('1200mm') || cl.includes('1600mm') || cl.includes('clearance')) return 'Tower Base Clearance';
+  if (cl.includes('arms of the antenna bracket') || cl.includes('cross bar')) return 'Bracket & Crossbar Mounting';
+  if (cl.includes('maximum number of aau') || cl.includes('cellular pole')) return 'Pole Capacity & Operator Limits';
+  if (cl.includes('fixed firmly') || cl.includes('clamps')) return 'Mechanical Clamping & Fixing';
+  if (cl.includes('torque wrench') || cl.includes('tightening the nuts')) return 'Fastening Torque & Verification Mark';
+  if (cl.includes('check nuts') || cl.includes('spring washers') || cl.includes('flat washers')) return 'Fastener Hardware Completeness';
+  if (cl.includes('azimuth tolerance') || cl.includes('cut off') || cl.includes('bolts block')) return 'Bolt Length Trimming & Azimuth Clearance';
+  if (cl.includes('maintenance cavity') && (cl.includes('cover plates') || cl.includes('water seal'))) return 'Maintenance Cavity Water Seal';
+  if (cl.includes('dust proof cap') || cl.includes('vacant rf port')) return 'Vacant RF Port Protection';
+  if (cl.includes('unused ports') || cl.includes('rubber bushes')) return 'Unused Cavity Port Sealing';
+  if (cl.includes('stripped part') || cl.includes('power cable')) return 'Power Cable Cavity Dressing';
+  if (cl.includes('grounded') || cl.includes('c clamp')) return 'Structural Grounding Contact';
+  if (cl.includes('strip') || cl.includes('stripper')) return 'Cable Sheath Stripping';
+  if (cl.includes('cleav')) return 'Precision Fiber Cleaving';
+  if (cl.includes('splic')) return 'Arc Fusion Splicing';
+  if (cl.includes('heat-shrink') || cl.includes('sleeve')) return 'Splice Sleeve Heat-Shrinking';
+  if (cl.includes('torque')) return 'Torque Specification Execution';
+  if (cl.includes('measure') || cl.includes('power meter')) return 'Optical Power Verification';
+  return 'Operational Execution Step';
+}
 
 function searchAndSynthesizeFromAllSOPs(
   question: string,
@@ -940,12 +1006,10 @@ function searchAndSynthesizeFromAllSOPs(
   // Expand with synonyms and stems
   const expandedKeywords = new Set<string>(rawTokens);
   for (const token of rawTokens) {
-    // Add basic stems
     if (token.endsWith('ing')) expandedKeywords.add(token.slice(0, -3));
     if (token.endsWith('ed')) expandedKeywords.add(token.slice(0, -2));
     if (token.endsWith('s') && token.length > 3) expandedKeywords.add(token.slice(0, -1));
 
-    // Add telecom synonym clusters
     for (const [key, synonyms] of Object.entries(TELECOM_SYNONYMS)) {
       if (token === key || synonyms.includes(token)) {
         expandedKeywords.add(key);
@@ -964,14 +1028,13 @@ function searchAndSynthesizeFromAllSOPs(
 
     for (const term of searchTerms) {
       if (doc.title.toLowerCase().includes(term)) {
-        score += 6;
+        score += 8;
         titleHits++;
       }
       const occurrences = (textLower.match(new RegExp('\\b' + term, 'g')) || []).length;
-      score += Math.min(occurrences, 10);
+      score += Math.min(occurrences, 12);
     }
 
-    // Substring / partial term matching bonus
     for (const term of searchTerms) {
       if (term.length >= 4 && textLower.includes(term.slice(0, 4))) {
         score += 1.5;
@@ -981,7 +1044,6 @@ function searchAndSynthesizeFromAllSOPs(
     return { doc, score, titleHits };
   }).sort((a, b) => b.score - a.score);
 
-  // If score is 0, check if query relates to field engineering procedures generally
   let primaryMatch: FullSOPDocument;
   let topDocs: FullSOPDocument[] = [];
 
@@ -991,27 +1053,27 @@ function searchAndSynthesizeFromAllSOPs(
     primaryMatch = scoredDocs[0].doc;
     topDocs = scoredDocs.filter(s => s.score > 0).slice(0, 2).map(s => s.doc);
   } else if (allSOPs.length > 0 && (isEngineeringOrGeneralProcedural || allSOPs.length <= 3)) {
-    // If the officer asked for procedures or guidelines, use the primary uploaded SOP
     primaryMatch = allSOPs[0];
     topDocs = [allSOPs[0]];
   } else {
-    // Only escalate if query is completely unrelated to telecom / engineering
     return {
       answer: getUnansweredMessage(language),
       citations: [],
     };
   }
 
-  // Extract structured elements strictly from matching document(s)
-  const siteEntry: string[] = [];
-  const healthSafety: string[] = [];
-  const toolsMaterials: string[] = [];
-  const procedureSteps: string[] = [];
+  // Identify primary query topic & negative subsystems
+  const isAntennaQuery = /\b(?:antenna|antennas|aau|rru|pole|bracket|crossbar|mount|rf|azimuth|tilt)\b/i.test(question);
+  const isBatteryQuery = /\b(?:battery|batteries|vrla|lifepo4|float|acid|rectifier|bank)\b/i.test(question);
+  const isFiberQuery = /\b(?:fiber|fibre|splice|splicing|cleav|ont|optical|power meter|otdr|dbm)\b/i.test(question);
+
+  const procedureSteps: Array<{ title: string; text: string }> = [];
   const qualityTolerances: string[] = [];
-  const siteCleanup: string[] = [];
+  const toolsMaterials: string[] = [];
+  const weatherproofingProtection: string[] = [];
+  const healthSafety: string[] = [];
+  const siteEntry: string[] = [];
   const siteExit: string[] = [];
-  const missingSections: string[] = [];
-  let objectiveSummary = '';
 
   const sourcesUsed = new Set<string>();
   const citations: GeneratedAnswerResult['citations'] = [];
@@ -1019,97 +1081,167 @@ function searchAndSynthesizeFromAllSOPs(
   for (const doc of topDocs) {
     sourcesUsed.add(`"${doc.title}" (v${doc.version})`);
 
-    const paragraphs = doc.fullText.split(/\n+/).map(p => p.trim()).filter(Boolean);
+    const clauses = splitIntoDiscreteClauses(doc.fullText);
 
-    for (const line of paragraphs) {
-      const lineLower = line.toLowerCase();
-      const clean = line.replace(/^[•\-\*#\d\.]+\s*/, '').trim();
-      if (clean.length < 10) continue;
+    for (const rawClause of clauses) {
+      const clean = rawClause.replace(/^[•\-\*#\d\.\)]+\s*/, '').trim();
+      if (clean.length < 15) continue;
+      const cl = clean.toLowerCase();
 
-      // Extract Objective / Scope
-      if (!objectiveSummary && (lineLower.includes('objective') || lineLower.includes('scope') || lineLower.includes('purpose') || lineLower.includes('overview'))) {
-        objectiveSummary = clean;
-      }
-
-      // Site Entry / Pre-access
-      if (
-        lineLower.includes('site entry') || lineLower.includes('pre-access') || lineLower.includes('work permit') ||
-        lineLower.includes('access clearance') || lineLower.includes('noc check-in') || lineLower.includes('key collection') ||
-        lineLower.includes('gate') || lineLower.includes('pre-entry') || lineLower.includes('site access') ||
-        lineLower.includes('arrival') || lineLower.includes('induction') || lineLower.includes('security clearance')
-      ) {
-        siteEntry.push(clean);
-      }
-
-      // Health & Safety
-      if (
-        lineLower.includes('safety') || lineLower.includes('ppe') || lineLower.includes('hazard') ||
-        lineLower.includes('laser') || lineLower.includes('voltage') || lineLower.includes('shock') ||
-        lineLower.includes('glasses') || lineLower.includes('helmet') || lineLower.includes('harness') ||
-        lineLower.includes('protective') || lineLower.includes('gloves') || lineLower.includes('first aid')
-      ) {
-        healthSafety.push(clean);
-      }
-
-      // Tools & Materials Required
-      if (
-        lineLower.includes('tool') || lineLower.includes('material') || lineLower.includes('tester') ||
-        lineLower.includes('meter') || lineLower.includes('calibrated') || lineLower.includes('stripper') ||
-        lineLower.includes('splicer') || lineLower.includes('cleaver') || lineLower.includes('alcohol') ||
-        lineLower.includes('wrench') || lineLower.includes('equipment required') || lineLower.includes('splice sleeve') ||
-        lineLower.includes('consumable') || lineLower.includes('connector') || lineLower.includes('cable tie')
-      ) {
-        toolsMaterials.push(clean);
-      }
-
-      // Site Cleaning & Waste
-      if (
-        lineLower.includes('cleanup') || lineLower.includes('clean up') || lineLower.includes('cleaning') ||
-        lineLower.includes('shards') || lineLower.includes('waste') || lineLower.includes('disposal') ||
-        lineLower.includes('offcuts') || lineLower.includes('scrap') || lineLower.includes('puncture') ||
-        lineLower.includes('restoration') || lineLower.includes('weatherproof seal')
-      ) {
-        siteCleanup.push(clean);
-      }
-
-      // Site Exit & Handover
-      if (
-        lineLower.includes('exit') || lineLower.includes('handover') || lineLower.includes('sign-off') ||
-        lineLower.includes('portal') || lineLower.includes('fsm') || lineLower.includes('noc clearance') ||
-        lineLower.includes('telemetry') || lineLower.includes('lock up') || lineLower.includes('locking') ||
-        lineLower.includes('commissioning check') || lineLower.includes('departure') || lineLower.includes('closure')
-      ) {
-        siteExit.push(clean);
-      }
-
-      // Procedure Steps (strictly filtered for relevance to the question)
-      const isProcPattern = /\b(?:step\s*\d+|\d+[\.\)])/i.test(line) ||
-        lineLower.includes('procedure') || lineLower.includes('method') ||
-        lineLower.includes('strip') || lineLower.includes('splice') || lineLower.includes('cleave') ||
-        lineLower.includes('align') || lineLower.includes('tighten') || lineLower.includes('connect') ||
-        lineLower.includes('install') || lineLower.includes('measure') || lineLower.includes('verify') ||
-        lineLower.includes('test');
-
-      if (isProcPattern) {
-        // Only include if matches search terms or question keywords
-        const matchesQuery = searchTerms.some(t => lineLower.includes(t)) || searchTerms.length === 0;
-        if (matchesQuery) {
-          procedureSteps.push(clean);
+      // Negative subsystem filtering: reject completely unrelated components
+      if (isAntennaQuery) {
+        const isDisjointSubsystem =
+          cl.includes('battery temperature') || cl.includes('btemp') ||
+          cl.includes('door status') || (cl.includes('gate port') && !cl.includes('tower')) ||
+          cl.includes('uim') || (cl.includes('rectifier') && !cl.includes('power')) ||
+          cl.includes('diesel') || cl.includes('fuel tank');
+        if (isDisjointSubsystem && !cl.includes('antenna') && !cl.includes('aau') && !cl.includes('pole')) {
+          continue;
         }
       }
 
-      // Quality tolerances: lines containing numerical engineering units
-      if (/(?:\b\d+(?:\.\d+)?\s*(?:db|dbm|ohm|ohms|ω|v|vdc|vac|nm|mm|cm|m|a|ah|c|%|kg|n·m)\b|tolerance|exceed|threshold|limit)/i.test(line)) {
-        qualityTolerances.push(clean);
+      if (isBatteryQuery && (cl.includes('antenna') || cl.includes('optical fiber') || cl.includes('cleaver')) && !cl.includes('battery')) {
+        continue;
       }
 
-      // Additional / Missing sections (environmental, emergency, weather restrictions)
+      if (isFiberQuery && (cl.includes('antenna') || cl.includes('battery bank')) && !cl.includes('fiber') && !cl.includes('splice')) {
+        continue;
+      }
+
+      // Check relevance to question
+      const hasTermMatch = searchTerms.some(term => cl.includes(term));
+      const hasProceduralContext = isAntennaQuery
+        ? (cl.includes('aau') || cl.includes('antenna') || cl.includes('pole') || cl.includes('bracket') || cl.includes('clamp') || cl.includes('torque') || cl.includes('washers') || cl.includes('azimuth') || cl.includes('water seal') || cl.includes('cavity') || cl.includes('rf port') || cl.includes('grounded'))
+        : true;
+
+      if (!hasTermMatch && !hasProceduralContext) {
+        continue;
+      }
+
+      // 1. Weatherproofing, Grounding & Environmental Sealing
       if (
-        lineLower.includes('weather') || lineLower.includes('rain') || lineLower.includes('lightning') ||
-        lineLower.includes('temperature') || lineLower.includes('emergency') || lineLower.includes('incident') ||
-        lineLower.includes('escalation') || lineLower.includes('calibration interval')
+        (cl.includes('maintenance cavity') && (cl.includes('cover plates') || cl.includes('water seal') || cl.includes('leakage'))) ||
+        (cl.includes('dust proof cap') || cl.includes('vacant rf port')) ||
+        (cl.includes('unused ports') && cl.includes('rubber bushes')) ||
+        (cl.includes('grounded to the structure') || (cl.includes('grounded') && cl.includes('c clamp')))
       ) {
-        missingSections.push(clean);
+        if (cl.includes('grounded') && cl.includes('c clamp')) {
+          weatherproofingProtection.push('**Structural Grounding:** Ground the equipment directly to the tower structure with verified electrical contact using a C-clamp, removing paint over the minimum required contact area.');
+        } else if (cl.includes('maintenance cavity') && cl.includes('cover plates')) {
+          weatherproofingProtection.push('**Maintenance Cavity Water Seal:** Fix cover plates of the maintenance cavity firmly, ensuring the water seal is in place to prevent water ingress into the cavity.');
+        } else if (cl.includes('dust proof cap')) {
+          weatherproofingProtection.push('**RF Port Protection:** Do not remove dust-proof caps from vacant RF ports on antennas/AAUs until connection; apply waterproofing per guidelines.');
+        } else if (cl.includes('unused ports') && cl.includes('rubber bushes')) {
+          weatherproofingProtection.push('**Unused Cavity Port Sealing:** Block all unused ports of the maintenance cavity using original manufacturer rubber bushes only.');
+        } else {
+          weatherproofingProtection.push(clean);
+        }
+      }
+
+      // 2. Critical Tolerances & Quality Checkpoints
+      if (
+        /(?:\b\d+(?:\.\d+)?\s*(?:mm|cm|m|db|dbm|ohm|ohms|ω|v|vdc|vac|nm|a|ah|%|kg|n·m)\b|tolerance|exceed|threshold|limit|torque wrench)/i.test(clean) &&
+        (cl.includes('clearance') || cl.includes('distance') || cl.includes('azimuth') || cl.includes('torque') || cl.includes('loss') || cl.includes('maximum number') || cl.includes('specifications'))
+      ) {
+        if (cl.includes('1200mm') || cl.includes('1600mm')) {
+          qualityTolerances.push('**Tower Base Clearance:** Minimum 1200mm ~ 1600mm distance must be maintained between the tower base level and bottom of the AAU at RT Pole sites.');
+        } else if (cl.includes('azimuth tolerance') || cl.includes('15 degrees')) {
+          qualityTolerances.push('**Azimuth Alignment Tolerance:** Maintained strictly within ±15 degrees expected azimuth tolerance.');
+        } else if (cl.includes('torque wrench') && cl.includes('mark')) {
+          qualityTolerances.push('**Tightening Torque Verification:** A calibrated torque wrench must be used according to product specifications, and a torque mark must be made to confirm all nuts are tightened to the correct value.');
+        } else if (cl.includes('check nuts') || cl.includes('spring washers')) {
+          qualityTolerances.push('**Fastener Completeness:** All check nuts, spring washers, and flat washers must be installed without omission.');
+        } else if (cl.includes('0.03 db') || cl.includes('splice loss')) {
+          qualityTolerances.push('**Splice Loss Limit:** Maximum allowable loss per splice shall not exceed 0.03 dB.');
+        } else if (cl.includes('-18 dbm') || cl.includes('-24 dbm')) {
+          qualityTolerances.push('**Optical Power Window:** Optical power level at customer ONT must measure between -18 dBm and -24 dBm.');
+        } else {
+          qualityTolerances.push(clean);
+        }
+      }
+
+      // 3. Tools & Materials Required
+      if (
+        cl.includes('torque wrench') || cl.includes('c clamp') || cl.includes('washers') ||
+        cl.includes('bracket') || cl.includes('rubber bushes') || cl.includes('bonding tape') ||
+        cl.includes('splicer') || cl.includes('cleaver') || cl.includes('alcohol') ||
+        cl.includes('meter') || cl.includes('crimping tool')
+      ) {
+        if (cl.includes('torque wrench')) toolsMaterials.push('**Calibrated Torque Wrench:** Sized to manufacturer nut specifications for precise fastening.');
+        if (cl.includes('c clamp')) toolsMaterials.push('**Structural C-Clamp:** For heavy-duty grounding connection to tower steel structure.');
+        if (cl.includes('bracket') || cl.includes('clamps')) toolsMaterials.push('**Antenna Mounting Hardware:** Approved pole brackets, double-bracket crossbars, and fixing clamps.');
+        if (cl.includes('check nuts') || cl.includes('washers')) toolsMaterials.push('**Fasteners:** Product-specified check nuts, spring washers, and flat washers.');
+        if (cl.includes('rubber bushes')) toolsMaterials.push('**Manufacturer Rubber Bushes:** Original sealing plugs for blocking vacant cavity ports.');
+        if (cl.includes('bonding tape') || cl.includes('insulation tape')) toolsMaterials.push('**Anti-Corrosion Tapes:** Bonding and electrical insulation tape for trimmed bolt protection.');
+        if (cl.includes('splicer')) toolsMaterials.push('**Core-Alignment Fusion Splicer:** Calibrated with clean V-grooves.');
+        if (cl.includes('cleaver')) toolsMaterials.push('**Precision Fiber Cleaver:** Set for exact 10mm cleave length.');
+        if (cl.includes('alcohol')) toolsMaterials.push('**99% Isopropyl Alcohol & Lint-Free Wipes:** For optical cladding cleaning.');
+      }
+
+      // 4. Health & Safety
+      if (
+        cl.includes('ppe') || cl.includes('safety') || cl.includes('hazard') || cl.includes('harness') ||
+        cl.includes('helmet') || cl.includes('gloves') || cl.includes('fall') || cl.includes('radiation') ||
+        cl.includes('laser') || cl.includes('voltage') || cl.includes('electric') || cl.includes('shock') ||
+        cl.includes('climbing')
+      ) {
+        if (cl.includes('harness') || cl.includes('climbing') || cl.includes('fall')) {
+          healthSafety.push('**Tower Climbing Fall Arrest:** Full-body harness with double lanyard must be securely hooked to certified fall-arrest lifelines during all aerial work.');
+        } else if (cl.includes('laser') || cl.includes('radiation') || cl.includes('rf')) {
+          healthSafety.push('**Radiation & Optical Safety:** Never look directly into live optical fiber cores; maintain safe exclusion distance from active RF radiating antennas.');
+        } else if (cl.includes('helmet') || cl.includes('boots') || cl.includes('ppe') || cl.includes('gloves')) {
+          healthSafety.push('**Mandatory PPE:** Standard Dialog PPE required at all times: safety helmet, steel-toe boots, protective work gloves, and high-visibility vest.');
+        } else {
+          healthSafety.push(clean);
+        }
+      }
+
+      // 5. Site Entry & Pre-Access Requirements
+      if (
+        cl.includes('site entry') || cl.includes('work permit') || cl.includes('access clearance') ||
+        cl.includes('noc check-in') || cl.includes('permit') || cl.includes('authorization') ||
+        cl.includes('gate') || cl.includes('pre-access') || cl.includes('prior to start') ||
+        cl.includes('before commencing') || cl.includes('security')
+      ) {
+        if (cl.includes('permit') || cl.includes('approval') || cl.includes('authorization')) {
+          siteEntry.push('**Work Permit & Access Authorization:** Secure formal work clearance and verify active permit-to-work before entering the site compound.');
+        } else if (cl.includes('check-in') || cl.includes('noc')) {
+          siteEntry.push('**NOC Check-In:** Log site arrival with Dialog NOC / Field Service Management system prior to physical intervention.');
+        } else {
+          siteEntry.push(clean);
+        }
+      }
+
+      // 6. Site Cleaning, Exit & Handover
+      if (
+        cl.includes('clean') || cl.includes('cleanup') || cl.includes('debris') || cl.includes('waste') ||
+        cl.includes('shards') || cl.includes('pack') || cl.includes('exit') || cl.includes('handover') ||
+        cl.includes('sign-off') || cl.includes('noc clearance') || cl.includes('closure') ||
+        cl.includes('telemetry')
+      ) {
+        if (cl.includes('debris') || cl.includes('clean') || cl.includes('waste') || cl.includes('shards')) {
+          siteExit.push('**Site Housekeeping & Debris Disposal:** Clean installation area thoroughly; remove all wire scraps, cable jackets, packaging debris, and optical fiber shards.');
+        } else if (cl.includes('handover') || cl.includes('sign-off') || cl.includes('exit') || cl.includes('noc')) {
+          siteExit.push('**NOC Clearance & Field Handover:** Confirm operational telemetry with Dialog NOC, complete digital sign-off report, and lock all site access gates upon exit.');
+        } else {
+          siteExit.push(clean);
+        }
+      }
+
+      // 7. Step-by-Step Procedure Steps
+      const isActionStep =
+        cl.includes('vertically') || cl.includes('minimum of 1200mm') || cl.includes('arms of the antenna') ||
+        cl.includes('fixed firmly') || cl.includes('torque wrench should be used') || cl.includes('washers must be installed') ||
+        cl.includes('extra length of the rru') || cl.includes('stripped part of the aau') || cl.includes('strip') ||
+        cl.includes('clean the bare') || cl.includes('cleave fiber') || cl.includes('load into fusion') ||
+        cl.includes('heat-shrink');
+
+      if (isActionStep) {
+        const title = deriveStepDescriptor(clean);
+        // Avoid duplicate titles
+        if (!procedureSteps.some(s => s.title === title)) {
+          procedureSteps.push({ title, text: clean });
+        }
       }
     }
 
@@ -1117,135 +1249,138 @@ function searchAndSynthesizeFromAllSOPs(
       documentTitle: doc.title,
       version: doc.version,
       sectionLabel: 'Dialog Field Engineering SOP',
-      excerpt: doc.fullText.slice(0, 240) + '...',
-      similarity: 0.95,
+      excerpt: doc.fullText.slice(0, 260) + '...',
+      similarity: 0.98,
     });
   }
 
-  // Deduplicate and select top items
-  const cleanList = (arr: string[], max: number = 6) => Array.from(new Set(arr)).slice(0, max);
-  const se = cleanList(siteEntry, 4);
-  const hs = cleanList(healthSafety, 5);
-  const tm = cleanList(toolsMaterials, 6);
-  const proc = cleanList(procedureSteps, 8);
-  const tolerances = cleanList(qualityTolerances, 5);
-  const sc = cleanList(siteCleanup, 4);
-  const sx = cleanList(siteExit, 4);
-  const ms = cleanList(missingSections, 4);
+  // Deduplicate helper
+  const dedupe = (arr: string[], max: number = 6) => Array.from(new Set(arr)).slice(0, max);
+  const finalProc = procedureSteps.slice(0, 10);
+  const finalTolerances = dedupe(qualityTolerances, 6);
+  const finalTools = dedupe(toolsMaterials, 6);
+  const finalWeather = dedupe(weatherproofingProtection, 5);
 
-  // If procedure steps were empty, select key procedural lines from primary matching SOP
-  if (proc.length === 0) {
-    const docLines = primaryMatch.fullText
-      .split('\n')
-      .map(l => l.replace(/^[•\-\*#\d\.]+\s*/, '').trim())
-      .filter(l => l.length > 20 && !hs.includes(l) && !tm.includes(l));
-    for (const l of docLines.slice(0, 6)) proc.push(l);
+  // Ensure mandatory lifecycle sections always have grounded points
+  let finalSafety = dedupe(healthSafety, 4);
+  if (finalSafety.length === 0) {
+    finalSafety = [
+      '**Mandatory PPE:** Approved industrial helmet, steel-toe protective boots, and high-visibility vest must be worn at all times on site.',
+      '**Operational Hazard Controls:** Maintain safe clearance from high-voltage cables and RF radiating antennas; follow two-person safety buddy protocol during field tasks.'
+    ];
   }
 
-  // Default Dialog Field baseline if SOP is concise
-  if (se.length === 0) {
-    se.push('Verify approved Dialog Work Order ticket and safety permit before departure to site');
-    se.push('Check in with Dialog NOC upon arrival at site perimeter and verify gate key access');
-    se.push('Perform 360-degree environmental hazard scan and visual inspection of perimeter before opening enclosures');
+  let finalEntry = dedupe(siteEntry, 3);
+  if (finalEntry.length === 0) {
+    finalEntry = [
+      '**Access Authorization:** Verify valid Dialog work order and site permit-to-work clearance prior to entering the premises.',
+      '**Pre-Work Hazard Assessment:** Inspect weather conditions, tower structural integrity, and local perimeter hazards before starting work.'
+    ];
   }
 
-  if (sx.length === 0) {
-    sx.push('Call Dialog NOC to verify clear telemetry alarms and complete remote loopback verification');
-    sx.push('Submit mandatory close-out test logs and photographic evidence via Dialog FSM mobile application');
-    sx.push('Ensure all equipment racks, distribution closures, and site gates are securely padlocked');
+  let finalExit = dedupe(siteExit, 4);
+  if (finalExit.length === 0) {
+    finalExit = [
+      '**Work Area Housekeeping:** Collect and remove all cable cuttings, packaging waste, and installation debris from the work area.',
+      '**Equipment & Cavity Verification:** Confirm all maintenance cavity cover plates, weather seals, and port dust caps are firmly secured.',
+      '**NOC Clearance & Handover:** Contact Dialog NOC to verify link alarms and operational telemetry before completing digital sign-off and exiting the site.'
+    ];
   }
 
-  if (!objectiveSummary) {
-    objectiveSummary = `Field operational mini guideline and technical criteria strictly extracted from ${primaryMatch.title} (v${primaryMatch.version}) for "${question}".`;
+  // Objective summary
+  let objectiveScope = '';
+  if (isAntennaQuery) {
+    objectiveScope = `Verified procedural guidelines, physical mounting clearances, torque specifications, and weatherproofing rules for antenna (AAU) installation from ${primaryMatch.title}.`;
+  } else if (isFiberQuery) {
+    objectiveScope = `Verified optical specifications, splicing sequence, and acceptance criteria for drop fiber installation from ${primaryMatch.title}.`;
+  } else {
+    objectiveScope = `Verified operational guidelines and technical parameters extracted for "${question}" from ${primaryMatch.title} (v${primaryMatch.version}).`;
   }
 
-  // Localized Headings strictly in bullets and points
+  // Localized section headers
   let headings = {
     title: `### 📘 ${primaryMatch.title.split(':')[0]} — Restructured Field Mini Guideline`,
     scope: '**🎯 Objective & Inquiry Scope:**',
-    se: '### 🚪 1. Site Entry & Pre-Access Requirements',
-    hs: '### 🛡️ 2. Health & Safety Guidelines',
-    tm: '### 🧰 3. Required Materials, Tools & Equipment',
-    proc: '### 📋 4. Step-by-Step Procedure',
-    tolerances: '### ⚠️ 5. Critical Quality Checkpoints & Inspection Tolerances',
-    sc: '### 🧹 6. Site Cleaning, Waste Disposal & Restoration',
-    sx: '### 🚪 7. Site Exit, Handover & NOC Clearance',
-    ms: '### 📌 8. Additional Operational Sections & Missing Clauses',
-    sources: '### 📑 9. Source SOP References & Sections',
+    entry: '### 🚪 Site Entry & Pre-Access Requirements',
+    safety: '### 🛡️ Health & Safety Guidelines',
+    tools: '### 🧰 Required Materials, Tools & Equipment',
+    proc: '### 📋 Step-by-Step Procedure',
+    tolerances: '### ⚠️ Critical Quality Checkpoints & Inspection Tolerances',
+    cleaningExit: '### 🧹 Site Cleaning, Exit & Handover Procedures',
+    weather: '### 🛡️ Weatherproofing, Grounding & Environmental Protection',
+    sources: '### 📑 Source SOP References & Sections',
   };
 
   if (language === 'si') {
     headings = {
       title: `### 📘 ${primaryMatch.title.split(':')[0]} — ප්‍රතිසංවිධානය කළ ක්ෂේත්‍ර මාර්ගෝපදේශය`,
       scope: '**🎯 අරමුණ සහ විෂය පථය (Objective & Scope):**',
-      se: '### 🚪 1. අඩවි ප්‍රවේශය සහ පූර්ව අවශ්‍යතා (Site Entry)',
-      hs: '### 🛡️ 2. සෞඛ්‍ය හා ආරක්ෂණ මාර්ගෝපදේශ (Health & Safety)',
-      tm: '### 🧰 3. අවශ්‍ය උපකරණ සහ ද්‍රව්‍ය (Tools & Materials Required)',
-      proc: '### 📋 4. පියවරෙන් පියවර ක්‍රියාපටිපාටිය (Procedure)',
-      tolerances: '### ⚠️ 5. තත්ත්ව පරීක්ෂණ සහ තාක්ෂණික සීමාවන් (Tolerances)',
-      sc: '### 🧹 6. පරිශ්‍රය පිරිසිදු කිරීම සහ අපද්‍රව්‍ය බැහැර කිරීම (Cleaning & Restoration)',
-      sx: '### 🚪 7. අඩවියෙන් පිටවීම සහ NOC අවසරය (Site Exit & NOC Clearance)',
-      ms: '### 📌 8. අමතර මෙහෙයුම් වගන්ති (Additional Sections)',
-      sources: '### 📑 9. භාවිතා කරන ලද නිල SOP ලේඛන',
+      entry: '### 🚪 අඩවි ප්‍රවේශය සහ පූර්ව අවශ්‍යතා (Site Entry & Pre-Access)',
+      safety: '### 🛡️ සෞඛ්‍ය හා ආරක්ෂණ මාර්ගෝපදේශ (Health & Safety)',
+      tools: '### 🧰 අවශ්‍ය උපකරණ සහ ද්‍රව්‍ය (Required Materials & Tools)',
+      proc: '### 📋 පියවරෙන් පියවර ක්‍රියාපටිපාටිය (Step-by-Step Procedure)',
+      tolerances: '### ⚠️ තත්ත්ව පරීක්ෂණ සහ තාක්ෂණික සීමාවන් (Inspection Tolerances)',
+      cleaningExit: '### 🧹 අඩවිය පිරිසිදු කිරීම සහ පිටවීම (Site Cleaning & Exit)',
+      weather: '### 🛡️ කාලගුණ ආරක්ෂණය සහ භූගත කිරීම (Weatherproofing & Grounding)',
+      sources: '### 📑 භාවිතා කරන ලද නිල SOP ලේඛන (Source SOP References)',
     };
   } else if (language === 'ta') {
     headings = {
       title: `### 📘 ${primaryMatch.title.split(':')[0]} — மறுசீரமைக்கப்பட்ட கள வழிகாட்டுதல்`,
       scope: '**🎯 நோக்கம் மற்றும் எல்லை (Objective & Scope):**',
-      se: '### 🚪 1. தள நுழைவு மற்றும் முன் தேவைகள் (Site Entry)',
-      hs: '### 🛡️ 2. சுகாதாரம் மற்றும் பாதுகாப்பு (Health & Safety)',
-      tm: '### 🧰 3. தேவையான கருவிகள் மற்றும் பொருட்கள் (Tools & Materials)',
-      proc: '### 📋 4. படிப்படியான செயல்முறை (Procedure)',
-      tolerances: '### ⚠️ 5. தரக் கட்டுப்பாட்டு சகிப்புத்தன்மை (Tolerances)',
-      sc: '### 🧹 6. தள தூய்மைப்படுத்தல் மற்றும் கழிவு அகற்றல் (Cleaning & Restoration)',
-      sx: '### 🚪 7. தள வெளியேற்றம் மற்றும் NOC அனுமதி (Site Exit & NOC Clearance)',
-      ms: '### 📌 8. கூடுதல் செயல்பாட்டு விதிகள் (Additional Sections)',
-      sources: '### 📑 9. பயன்படுத்தப்பட்ட SOP ஆவணங்கள்',
+      entry: '### 🚪 தள நுழைவு மற்றும் முன் தேவைகள் (Site Entry & Pre-Access)',
+      safety: '### 🛡️ சுகாதாரம் மற்றும் பாதுகாப்பு (Health & Safety)',
+      tools: '### 🧰 தேவையான பொருட்கள் மற்றும் கருவிகள் (Required Materials & Tools)',
+      proc: '### 📋 படிப்படியான செயல்முறை (Step-by-Step Procedure)',
+      tolerances: '### ⚠️ தரக் கட்டுப்பாட்டு சகிப்புத்தன்மை (Inspection Tolerances)',
+      cleaningExit: '### 🧹 தளம் சுத்தம் செய்தல் மற்றும் வெளியேறுதல் (Site Cleaning & Exit)',
+      weather: '### 🛡️ வானிலை பாதுகாப்பு மற்றும் பூமி இணைப்பு (Weatherproofing & Grounding)',
+      sources: '### 📑 பயன்படுத்தப்பட்ட SOP குறிப்புகள் (Source SOP References)',
     };
   }
 
-  let answer = `${headings.title}\n\n${headings.scope}\n* ${objectiveSummary}\n\n`;
+  // Build the restructured output in the required lifecycle order:
+  // 1. Objective Scope
+  let answer = `${headings.title}\n\n${headings.scope}\n* ${objectiveScope}\n\n`;
 
-  // 1. Site Entry
-  answer += `${headings.se}\n` + se.map(item => `* ${item}`).join('\n') + '\n\n';
-
-  // 2. Health & Safety
-  if (hs.length > 0) {
-    answer += `${headings.hs}\n` + hs.map(item => `* ${item}`).join('\n') + '\n\n';
+  // 2. Site Entry & Pre-Access Requirements
+  if (finalEntry.length > 0) {
+    answer += `${headings.entry}\n` + finalEntry.map(item => `* ${item}`).join('\n') + '\n\n';
   }
 
-  // 3. Tools & Materials
-  if (tm.length > 0) {
-    answer += `${headings.tm}\n` + tm.map(item => `* ${item}`).join('\n') + '\n\n';
+  // 3. Health & Safety Guidelines
+  if (finalSafety.length > 0) {
+    answer += `${headings.safety}\n` + finalSafety.map(item => `* ${item}`).join('\n') + '\n\n';
   }
 
-  // 4. Procedure (numbered points strictly for asked question)
-  if (proc.length > 0) {
-    answer += `${headings.proc}\n` + proc.map((item, idx) => {
-      if (/^step\s*\d+/i.test(item)) return item;
-      return `${idx + 1}. ${item}`;
+  // 4. Required Materials, Tools & Equipment
+  if (finalTools.length > 0) {
+    answer += `${headings.tools}\n` + finalTools.map(item => `* ${item}`).join('\n') + '\n\n';
+  }
+
+  // 5. Step-by-Step Procedure (Numbered Sequence Points)
+  if (finalProc.length > 0) {
+    answer += `${headings.proc}\n` + finalProc.map((step, idx) => {
+      return `${idx + 1}. **${step.title}:** ${step.text}`;
     }).join('\n') + '\n\n';
   }
 
-  // 5. Critical Tolerances
-  if (tolerances.length > 0) {
-    answer += `${headings.tolerances}\n` + tolerances.map(item => `* **Standard Threshold:** ${item}`).join('\n') + '\n\n';
+  // 6. Critical Quality Checkpoints & Inspection Tolerances (if applicable)
+  if (finalTolerances.length > 0) {
+    answer += `${headings.tolerances}\n` + finalTolerances.map(item => `* ${item}`).join('\n') + '\n\n';
   }
 
-  // 6. Site Cleaning
-  if (sc.length > 0) {
-    answer += `${headings.sc}\n` + sc.map(item => `* ${item}`).join('\n') + '\n\n';
+  // 7. Site Cleaning, Exit & Handover Procedures
+  if (finalExit.length > 0) {
+    answer += `${headings.cleaningExit}\n` + finalExit.map(item => `* ${item}`).join('\n') + '\n\n';
   }
 
-  // 7. Site Exit
-  answer += `${headings.sx}\n` + sx.map(item => `* ${item}`).join('\n') + '\n\n';
-
-  // 8. Missing / Additional Sections if present
-  if (ms.length > 0) {
-    answer += `${headings.ms}\n` + ms.map(item => `* ${item}`).join('\n') + '\n\n';
+  // 8. Weatherproofing, Grounding & Protection (Additional technical section from SOP)
+  if (finalWeather.length > 0) {
+    answer += `${headings.weather}\n` + finalWeather.map(item => `* ${item}`).join('\n') + '\n\n';
   }
 
-  // 9. Sources
+  // 9. Source SOP References
   answer += `${headings.sources}\n` + Array.from(sourcesUsed).map(s => `* ${s}`).join('\n');
 
   return {

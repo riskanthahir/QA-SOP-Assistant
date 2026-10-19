@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { embed, generateAnswer, generateAnswerFromAllSOPs, FullSOPDocument, computeCosineSimilarity, SOPChunk as AISOPChunk, SupportedLanguage } from '../lib/ai.js';
 import { SOPDocument, SOPChunk, Chat, Message, IndexingJob, Profile, RateLimitStatus, AnalyticsSummary, Citation } from '../src/types.js';
 import {
@@ -9,6 +11,8 @@ import {
   isNetworkOrFetchError,
 } from './supabase.js';
 
+const CACHE_FILE = path.join(process.env.TEMP || process.env.TMPDIR || '/tmp', 'dialog_sops_cache.json');
+
 // Live production store backed 100% by Supabase (PostgreSQL + pgvector) with in-memory preservation
 export class SOPStore {
   private initPromise: Promise<void>;
@@ -19,7 +23,44 @@ export class SOPStore {
   private inMemoryMessages: Map<string, Message[]> = new Map();
 
   constructor() {
+    this.loadCacheFromDisk();
     this.initPromise = this.bootstrapDatabase();
+  }
+
+  private loadCacheFromDisk() {
+    try {
+      if (fs.existsSync(CACHE_FILE)) {
+        const raw = fs.readFileSync(CACHE_FILE, 'utf-8');
+        const data = JSON.parse(raw);
+        if (Array.isArray(data.sops)) {
+          for (const s of data.sops) {
+            if (s && s.id && s.title && s.fullText) {
+              this.inMemorySOPs.set(s.id, s);
+              this.inMemorySOPs.set(s.title.toLowerCase(), s);
+            }
+          }
+        }
+        if (Array.isArray(data.docs)) {
+          for (const d of data.docs) {
+            if (d && d.id) {
+              this.inMemoryDocs.set(d.id, d);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[SOPStore] Local cache load notice:', (e as any)?.message || e);
+    }
+  }
+
+  private saveCacheToDisk() {
+    try {
+      const sops = Array.from(new Set(Array.from(this.inMemorySOPs.values())));
+      const docs = Array.from(this.inMemoryDocs.values());
+      fs.writeFileSync(CACHE_FILE, JSON.stringify({ sops, docs }, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn('[SOPStore] Local cache save notice:', (e as any)?.message || e);
+    }
   }
 
   public getStaticSOPDocuments(): FullSOPDocument[] {
@@ -1327,6 +1368,7 @@ export class SOPStore {
     }
 
     console.log(`[SOPStore] Deleted SOP document: ${documentId}`);
+    this.saveCacheToDisk();
     return true;
   }
 
@@ -1468,13 +1510,14 @@ export class SOPStore {
     }
 
     console.log(`[SOPStore] Successfully saved SOP document: "${title}" (v${version}) with full text preserved.`);
+    this.saveCacheToDisk();
     return {
       document: createdDoc,
       job: createdJob,
     };
   }
 
-  private splitIntoSections(text: string): Array<{ sectionLabel: string; content: string }> {
+  public splitIntoSections(text: string): Array<{ sectionLabel: string; content: string }> {
     const lines = text.split('\n');
     const sections: Array<{ sectionLabel: string; content: string }> = [];
 
