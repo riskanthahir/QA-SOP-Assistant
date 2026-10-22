@@ -21,59 +21,25 @@ PRIMARY OPERATIONAL DIRECTIVES (STRICT COMPLIANCE REQUIRED):
 
 2. SHOULD BE BULLETS AND POINTS:
    - Output MUST be structured EXCLUSIVELY in clean, punchy bullets ('* ') and numbered points ('1. ', '2. ').
-   - Never write narrative paragraphs, conversational filler, or unbroken walls of text. Every section must consist of distinct bullet items or numbered sequence steps with bold lead descriptors.
+   - Never write narrative paragraphs, conversational filler, or unbroken walls of text. Every item must have a bold lead descriptor: '* **[Lead Descriptor]:** [Actionable operational detail]'.
 
 3. SHOULD ONLY GIVE ASKED QUESTION RELATED ANSWER FROM SOPS:
    - Focus directly and specifically on the asked question/task.
    - Exclude unrelated chapters, equipment, or subsystems (for example: do NOT include battery sensors, door alarms, or inverter settings when asked about antenna installation).
 
-4. INCLUDE REQUIRED SECTIONS FROM SITE ENTRY, HEALTH & SAFETY, REQUIRED MATERIALS & TOOLS, PROCEDURE, CLEANING & TO EXIT, PLUS ANY MISSING SECTIONS:
-   - The restructured output MUST present the following sections in field operational sequence:
-     \u2022 \u{1F6AA} Site Entry & Pre-Access Requirements
-     \u2022 \u{1F6E1}\uFE0F Health & Safety Guidelines
-     \u2022 \u{1F9F0} Required Materials, Tools & Equipment
-     \u2022 \u{1F4CB} Step-by-Step Procedure (Numbered points for sequential execution)
-     \u2022 \u26A0\uFE0F Critical Quality Checkpoints & Inspection Tolerances (Numerical tolerances, clearances, limits)
-     \u2022 \u{1F9F9} Site Cleaning, Exit & Handover Procedures (Site cleaning, waste removal, cavity sealing check, NOC sign-off & exit)
-     \u2022 \u{1F6E1}\uFE0F Weatherproofing, Grounding & Environmental Protection (Include if SOP has weatherproofing/earthing for this task)
-     \u2022 \u{1F4D1} Source SOP References & Sections
-   - Format each actionable step with a bold lead label: '1. **[Step Descriptor]:** [Actionable operational detail]'.
-   - Format quality checkpoints with bold lead labels: '* **[Tolerance Parameter]:** [Exact limit, e.g. 1200mm ~ 1600mm, \xB115\xB0, 0.03 dB]'.
-   - Format tools and materials with bold lead labels: '* **[Tool Name]:** [Specification or calibrated standard]'.
-   - Format entry, safety, cleaning and exit items with bold lead labels: '* **[Descriptor]:** [Instruction strictly from SOP]'.
-
-STRUCTURE OF THE RESTRUCTURED RESPONSE:
-   ### \u{1F4D8} [SOP Title or Document Code] \u2014 Field Operational Mini Guideline
-
-   **\u{1F3AF} Objective & Inquiry Scope:**
-   * [1-2 concise bullet points defining the specific task or procedure asked by the officer]
-
-   ### \u{1F6AA} Site Entry & Pre-Access Requirements
-   * **[Access / Permit Requirement]:** [Actionable clearance, work permits, NOC notification, or site pre-access inspection from SOP]
-
-   ### \u{1F6E1}\uFE0F Health & Safety Guidelines
-   * **[Mandatory PPE / Hazard Control]:** [Specific PPE, climbing harness, RF radiation hazards, electrical safety, or laser precautions from SOP]
-
-   ### \u{1F9F0} Required Materials, Tools & Equipment
-   * **[Tool / Material Name]:** [Specification, calibrated tool, torque wrench, C-clamp, brackets, washers, or consumables from SOP]
-
-   ### \u{1F4CB} Step-by-Step Procedure
-   1. **[Step Descriptor]:** [Actionable sequence step directly addressing the asked question from SOP]
-   2. **[Step Descriptor]:** [Actionable sequence step directly addressing the asked question from SOP]
-
-   ### \u26A0\uFE0F Critical Quality Checkpoints & Inspection Tolerances
-   * **[Parameter]:** [Exact numerical tolerance from SOP, e.g. 1200mm ~ 1600mm clearance, \xB115\xB0 azimuth, 0.03 dB loss, torque Nm]
-
-   ### \u{1F9F9} Site Cleaning, Exit & Handover Procedures
-   * **[Work Area Cleaning & Debris]:** [Clear all debris, offcuts, packaging, or fiber shards from the work area per SOP]
-   * **[Tool & Equipment Check]:** [Ensure all tools are packed and all maintenance cavity cover plates/doors are secured]
-   * **[NOC Telemetry & Handover]:** [Contact Dialog NOC / FSM to verify telemetry, submit test results, and clear site exit]
-
-   ### \u{1F6E1}\uFE0F Weatherproofing, Grounding & Environmental Protection
-   * **[Protection Measure]:** [Cavity water seal, rubber bushes, vacant RF port dust caps, structural grounding with C-clamp]
-
-   ### \u{1F4D1} Source SOP References & Sections
-   * [Exact SOP manual title, version number, and specific section clauses referenced]
+4. RESTRUCTURE WITH ONLY RELEVANT SECTIONS FROM PROVIDED SOPS:
+   - Present ONLY the sections that are genuinely relevant to the field officer's inquiry and documented in the provided SOPs.
+   - Do NOT output empty, boilerplate, or irrelevant sections. If a section does not apply to the specific question or is not covered in the SOPs, OMIT IT entirely.
+   - Candidate sections in field operational sequence (include only those relevant):
+     \u2022 \u{1F3AF} Objective & Inquiry Scope (1-2 concise bullet points directly defining the task or inquiry scope)
+     \u2022 \u{1F6AA} Site Entry & Pre-Access Requirements (Include ONLY IF site access, work permits, or pre-access checks are documented for this task in the SOP)
+     \u2022 \u{1F6E1}\uFE0F Health & Safety Guidelines (Include ONLY IF safety rules, PPE, climbing fall-arrest, RF, or electrical hazard controls are documented in the SOP)
+     \u2022 \u{1F9F0} Required Materials, Tools & Equipment (Include ONLY IF specific tools, torque wrenches, meters, or materials are documented in the SOP)
+     \u2022 \u{1F4CB} Step-by-Step Procedure (Numbered points '1. **[Step Descriptor]:** ...' detailing the sequential procedure directly answering the question)
+     \u2022 \u26A0\uFE0F Critical Quality Checkpoints & Inspection Tolerances (Include ONLY IF numerical tolerances, clearances, torque values, or limits exist in the SOP)
+     \u2022 \u{1F9F9} Site Cleaning, Exit & Handover Procedures (Include ONLY IF work area cleaning, cavity checks, NOC clearance, or exit steps are documented in the SOP)
+     \u2022 \u{1F6E1}\uFE0F Weatherproofing, Grounding & Environmental Protection (Include ONLY IF weatherproofing, earthing, or environmental protection apply in the SOP)
+     \u2022 \u{1F4D1} Source SOP References & Sections (Exact SOP manual title, version number, and specific section clauses referenced)
 
 5. ESCALATION CONDITION:
    - ONLY if the query is genuinely completely absent and completely unrelated to any content in the provided SOPs, output:
@@ -363,15 +329,19 @@ TASK EXECUTION & OPERATIONAL DIRECTIVES:
 1. STRICTLY REFER WHOLE SOPS UPLOADED BY ADMIN: Base every single bullet point and sequence step strictly on the SOP text provided above.
 2. SHOULD BE BULLETS AND POINTS: Every single section MUST consist of bullets ('* ') or numbered points ('1. ', '2. '). Never use continuous narrative prose or paragraphs. Every item must have a bold lead descriptor.
 3. SHOULD ONLY GIVE ASKED QUESTION RELATED ANSWER FROM SOPS: Focus directly and specifically on the asked question/task. Exclude unrelated chapters, subsystems, or equipment (e.g. do not include battery sensors, door alarms, or inverter settings when asked about antenna installation).
-4. INCLUDE SECTIONS IN FIELD OPERATIONAL SEQUENCE:
-   - \u{1F6AA} Site Entry & Pre-Access Requirements (Clearance, permits, pre-access hazard check)
-   - \u{1F6E1}\uFE0F Health & Safety Guidelines (Mandatory PPE, height harness, RF/electrical hazards)
-   - \u{1F9F0} Required Materials, Tools & Equipment (Calibrated tools, torque wrench, C-clamps, washers, consumables)
-   - \u{1F4CB} Step-by-Step Procedure (Numbered sequence points '1. **[Step Descriptor]:** ...' directly answering the asked question)
-   - \u26A0\uFE0F Critical Quality Checkpoints & Inspection Tolerances (Numerical limits, clearances, torque values, dB loss)
-   - \u{1F9F9} Site Cleaning, Exit & Handover Procedures (Debris cleanup, cavity check, NOC clearance, site exit)
-   - \u{1F6E1}\uFE0F Weatherproofing, Grounding & Environmental Protection (Add if applicable from SOP)
-   - \u{1F4D1} Source SOP References & Sections
+4. RESTRUCTURE WITH ONLY RELEVANT SECTIONS FROM PROVIDED SOPS:
+   - Present ONLY the sections that are genuinely relevant to the field officer's inquiry and documented in the provided SOPs.
+   - Do NOT output empty, boilerplate, or irrelevant sections. If a section does not apply to the specific question or is not covered in the SOPs, OMIT IT entirely.
+   - Candidate sections in field operational sequence (include only those relevant):
+     \u2022 \u{1F3AF} Objective & Inquiry Scope (1-2 concise bullet points directly defining the task or inquiry scope)
+     \u2022 \u{1F6AA} Site Entry & Pre-Access Requirements (Include ONLY IF site access, work permits, or pre-access checks are documented for this task in the SOP)
+     \u2022 \u{1F6E1}\uFE0F Health & Safety Guidelines (Include ONLY IF safety rules, PPE, climbing fall-arrest, RF, or electrical hazard controls are documented in the SOP)
+     \u2022 \u{1F9F0} Required Materials, Tools & Equipment (Include ONLY IF specific tools, torque wrenches, meters, or materials are documented in the SOP)
+     \u2022 \u{1F4CB} Step-by-Step Procedure (Numbered points '1. **[Step Descriptor]:** ...' detailing the sequential procedure directly answering the question)
+     \u2022 \u26A0\uFE0F Critical Quality Checkpoints & Inspection Tolerances (Include ONLY IF numerical tolerances, clearances, torque values, or limits exist in the SOP)
+     \u2022 \u{1F9F9} Site Cleaning, Exit & Handover Procedures (Include ONLY IF work area cleaning, cavity checks, NOC clearance, or exit steps are documented in the SOP)
+     \u2022 \u{1F6E1}\uFE0F Weatherproofing, Grounding & Environmental Protection (Include ONLY IF weatherproofing, earthing, or environmental protection apply in the SOP)
+     \u2022 \u{1F4D1} Source SOP References & Sections (Exact SOP manual title, version number, and specific section clauses referenced)
    Ground every point in the uploaded SOP text above; only use the escalation notice if the query has zero relation to any of the uploaded SOPs.`;
       for (const model of candidateModels) {
         try {
@@ -820,10 +790,10 @@ function searchAndSynthesizeFromAllSOPs(question, allSOPs, language) {
           siteExit.push(clean);
         }
       }
-      const isActionStep = cl.includes("vertically") || cl.includes("minimum of 1200mm") || cl.includes("arms of the antenna") || cl.includes("fixed firmly") || cl.includes("torque wrench should be used") || cl.includes("washers must be installed") || cl.includes("extra length of the rru") || cl.includes("stripped part of the aau") || cl.includes("strip") || cl.includes("clean the bare") || cl.includes("cleave fiber") || cl.includes("load into fusion") || cl.includes("heat-shrink");
-      if (isActionStep) {
+      const isActionStep = /\b(?:ensure|install|mount|connect|tighten|fasten|verify|inspect|check|measure|align|configure|route|strip|cleave|splice|secure|prepare|apply|remove|attach|place|insert|test|record|calibrate|switch|turn|open|close|maintain|adjust)\b/i.test(clean) || /(?:step\s*\d+|^\d+[\.\)]|[a-z][\.\)])/i.test(rawClause) || cl.includes("vertically") || cl.includes("arms of the antenna") || cl.includes("fixed firmly") || cl.includes("torque wrench") || cl.includes("washers") || cl.includes("rru") || cl.includes("aau") || cl.includes("bare fiber") || cl.includes("cleave") || cl.includes("fusion") || cl.includes("heat-shrink");
+      if (isActionStep && !cl.includes("site entry") && !cl.includes("gate") && !cl.includes("sign-off")) {
         const title = deriveStepDescriptor(clean);
-        if (!procedureSteps.some((s) => s.title === title)) {
+        if (!procedureSteps.some((s) => s.text === clean || s.title === title && procedureSteps.length > 6)) {
           procedureSteps.push({ title, text: clean });
         }
       }
@@ -837,31 +807,25 @@ function searchAndSynthesizeFromAllSOPs(question, allSOPs, language) {
     });
   }
   const dedupe = (arr, max = 6) => Array.from(new Set(arr)).slice(0, max);
-  const finalProc = procedureSteps.slice(0, 10);
+  let finalProc = procedureSteps.slice(0, 10);
   const finalTolerances = dedupe(qualityTolerances, 6);
   const finalTools = dedupe(toolsMaterials, 6);
   const finalWeather = dedupe(weatherproofingProtection, 5);
-  let finalSafety = dedupe(healthSafety, 4);
-  if (finalSafety.length === 0) {
-    finalSafety = [
-      "**Mandatory PPE:** Approved industrial helmet, steel-toe protective boots, and high-visibility vest must be worn at all times on site.",
-      "**Operational Hazard Controls:** Maintain safe clearance from high-voltage cables and RF radiating antennas; follow two-person safety buddy protocol during field tasks."
-    ];
-  }
-  let finalEntry = dedupe(siteEntry, 3);
-  if (finalEntry.length === 0) {
-    finalEntry = [
-      "**Access Authorization:** Verify valid Dialog work order and site permit-to-work clearance prior to entering the premises.",
-      "**Pre-Work Hazard Assessment:** Inspect weather conditions, tower structural integrity, and local perimeter hazards before starting work."
-    ];
-  }
-  let finalExit = dedupe(siteExit, 4);
-  if (finalExit.length === 0) {
-    finalExit = [
-      "**Work Area Housekeeping:** Collect and remove all cable cuttings, packaging waste, and installation debris from the work area.",
-      "**Equipment & Cavity Verification:** Confirm all maintenance cavity cover plates, weather seals, and port dust caps are firmly secured.",
-      "**NOC Clearance & Handover:** Contact Dialog NOC to verify link alarms and operational telemetry before completing digital sign-off and exiting the site."
-    ];
+  const finalSafety = dedupe(healthSafety, 5);
+  const finalEntry = dedupe(siteEntry, 4);
+  const finalExit = dedupe(siteExit, 4);
+  if (finalProc.length === 0 && topDocs.length > 0) {
+    const rawClauses = splitIntoDiscreteClauses(topDocs[0].fullText);
+    for (const raw of rawClauses) {
+      const clean = raw.replace(/^[•\-\*#\d\.\)]+\s*/, "").trim();
+      if (clean.length > 25 && searchTerms.some((t) => clean.toLowerCase().includes(t))) {
+        finalProc.push({
+          title: deriveStepDescriptor(clean),
+          text: clean
+        });
+        if (finalProc.length >= 6) break;
+      }
+    }
   }
   let objectiveScope = "";
   if (isAntennaQuery) {
@@ -986,7 +950,7 @@ var isSupabaseConfigured = () => {
     url && key && url.startsWith("http") && !url.includes("xyzcompany")
   );
 };
-var isSupabaseHealthy = false;
+var isSupabaseHealthy = isSupabaseConfigured();
 var isCheckingHealth = false;
 var lastUnhealthyReason = null;
 var lastCheckTimestamp = 0;
@@ -1002,7 +966,7 @@ function markSupabaseUnhealthy(err) {
   const reason = err?.message || err?.details || String(err || "Connection error");
   if (lastUnhealthyReason !== reason) {
     lastUnhealthyReason = reason;
-    console.log("[Supabase] High-availability local standalone mode active with verified Dialog SOP documents.");
+    console.log("[Supabase] Host unreachable or offline:", reason);
   }
 }
 function markSupabaseHealthy() {
@@ -1100,7 +1064,8 @@ function getSupabaseAdminOrNull() {
 var supabaseAdmin = isSupabaseConfigured() ? getSupabaseAdminOrNull() : null;
 
 // server/sopStore.ts
-var CACHE_FILE = path.join(process.env.TEMP || process.env.TMPDIR || "/tmp", "dialog_sops_cache.json");
+var LOCAL_CACHE_FILE = path.join(process.cwd(), "dialog_sops_cache.json");
+var TMP_CACHE_FILE = path.join(process.env.TEMP || process.env.TMPDIR || "/tmp", "dialog_sops_cache.json");
 var SOPStore = class {
   constructor() {
     this.inMemorySOPs = /* @__PURE__ */ new Map();
@@ -1112,43 +1077,49 @@ var SOPStore = class {
     this.initPromise = this.bootstrapDatabase();
   }
   loadCacheFromDisk() {
-    try {
-      if (fs.existsSync(CACHE_FILE)) {
-        const raw = fs.readFileSync(CACHE_FILE, "utf-8");
-        const data = JSON.parse(raw);
-        if (Array.isArray(data.sops)) {
-          for (const s of data.sops) {
-            if (s && s.id && s.title && s.fullText) {
-              this.inMemorySOPs.set(s.id, s);
-              this.inMemorySOPs.set(s.title.toLowerCase(), s);
+    const candidateFiles = [LOCAL_CACHE_FILE, TMP_CACHE_FILE];
+    for (const filePath of candidateFiles) {
+      try {
+        if (fs.existsSync(filePath)) {
+          const raw = fs.readFileSync(filePath, "utf-8");
+          const data = JSON.parse(raw);
+          if (Array.isArray(data.sops)) {
+            for (const s of data.sops) {
+              if (s && s.id && s.title && s.fullText) {
+                this.inMemorySOPs.set(s.id, s);
+                this.inMemorySOPs.set(s.title.toLowerCase(), s);
+              }
+            }
+          }
+          if (Array.isArray(data.docs)) {
+            for (const d of data.docs) {
+              if (d && d.id) {
+                this.inMemoryDocs.set(d.id, d);
+              }
             }
           }
         }
-        if (Array.isArray(data.docs)) {
-          for (const d of data.docs) {
-            if (d && d.id) {
-              this.inMemoryDocs.set(d.id, d);
-            }
-          }
-        }
+      } catch (e) {
+        console.warn(`[SOPStore] Local cache load notice (${filePath}):`, e?.message || e);
       }
-    } catch (e) {
-      console.warn("[SOPStore] Local cache load notice:", e?.message || e);
     }
   }
   saveCacheToDisk() {
-    try {
-      const sops = Array.from(new Set(Array.from(this.inMemorySOPs.values())));
-      const docs = Array.from(this.inMemoryDocs.values());
-      fs.writeFileSync(CACHE_FILE, JSON.stringify({ sops, docs }, null, 2), "utf-8");
-    } catch (e) {
-      console.warn("[SOPStore] Local cache save notice:", e?.message || e);
+    const sops = Array.from(new Set(Array.from(this.inMemorySOPs.values())));
+    const docs = Array.from(this.inMemoryDocs.values());
+    const payload = JSON.stringify({ sops, docs }, null, 2);
+    for (const filePath of [LOCAL_CACHE_FILE, TMP_CACHE_FILE]) {
+      try {
+        fs.writeFileSync(filePath, payload, "utf-8");
+      } catch (e) {
+      }
     }
   }
   getStaticSOPDocuments() {
     return [];
   }
   async getAllActiveSOPDocuments() {
+    this.loadCacheFromDisk();
     const docMap = /* @__PURE__ */ new Map();
     for (const doc of this.inMemorySOPs.values()) {
       docMap.set(doc.title.toLowerCase(), doc);
@@ -1207,43 +1178,47 @@ var SOPStore = class {
         return;
       }
       const supabase = getSupabaseAdmin();
-      const { data: usersData, error: listErr } = await supabase.auth.admin.listUsers();
-      if (listErr) {
-        if (isNetworkOrFetchError(listErr)) {
-          markSupabaseUnhealthy(listErr);
-          return;
+      let masterUser = null;
+      let allUsers = [];
+      if (typeof supabase?.auth?.admin?.listUsers === "function") {
+        try {
+          const { data: usersData, error: listErr } = await supabase.auth.admin.listUsers();
+          if (listErr && isNetworkOrFetchError(listErr)) {
+            markSupabaseUnhealthy(listErr);
+            return;
+          }
+          allUsers = usersData?.users || [];
+          masterUser = allUsers.find((u) => u.email?.toLowerCase() === "rizkan6@gmail.com");
+          if (!masterUser) {
+            console.log("[SOPStore] Registering Master Admin (rizkan6@gmail.com) in Supabase Auth...");
+            const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+              email: "rizkan6@gmail.com",
+              password: "MasterAdminPassword2026!",
+              email_confirm: true,
+              user_metadata: {
+                full_name: "Eng. Rizkan (Master Administrator)",
+                role: "admin"
+              }
+            });
+            if (createErr && isNetworkOrFetchError(createErr)) {
+              markSupabaseUnhealthy(createErr);
+            } else {
+              masterUser = created?.user;
+            }
+          }
+        } catch (adminErr) {
+          console.log("[SOPStore] Supabase admin auth note (standard client active):", adminErr?.message || adminErr);
         }
       }
-      const allUsers = usersData?.users || [];
-      let masterUser = allUsers.find((u) => u.email?.toLowerCase() === "rizkan6@gmail.com");
-      if (!masterUser) {
-        console.log("[SOPStore] Registering Master Admin (rizkan6@gmail.com) in Supabase Auth...");
-        const { data: created, error: createErr } = await supabase.auth.admin.createUser({
-          email: "rizkan6@gmail.com",
-          password: "MasterAdminPassword2026!",
-          email_confirm: true,
-          user_metadata: {
-            full_name: "Eng. Rizkan (Master Administrator)",
-            role: "admin"
-          }
-        });
-        if (createErr) {
-          if (isNetworkOrFetchError(createErr)) {
-            markSupabaseUnhealthy(createErr);
-          } else {
-            console.log("[SOPStore] Notice creating master admin in database:", createErr?.message || createErr);
-          }
-        } else {
-          masterUser = created?.user;
-        }
-      }
-      if (masterUser) {
+      if (masterUser && allUsers.length > 0) {
         for (const u of allUsers) {
           if (u.id !== masterUser.id) {
             console.log(`[SOPStore] Removing non-master user from database: ${u.email} (${u.id})`);
             await supabase.from("sop_documents").update({ uploaded_by: masterUser.id }).eq("uploaded_by", u.id);
             await supabase.from("chats").update({ user_id: masterUser.id }).eq("user_id", u.id);
-            await supabase.auth.admin.deleteUser(u.id);
+            if (supabase?.auth?.admin?.deleteUser) {
+              await supabase.auth.admin.deleteUser(u.id);
+            }
             await supabase.from("profiles").delete().eq("id", u.id);
           }
         }
@@ -1299,15 +1274,18 @@ var SOPStore = class {
         return [defaultMasterProfile];
       }
       try {
-        const { data: usersData } = await supabase.auth.admin.listUsers();
-        const emailMap = /* @__PURE__ */ new Map();
-        usersData?.users.forEach((u) => {
-          if (u.email) emailMap.set(u.id, u.email);
-        });
-        return (data || []).map((p) => ({
-          ...p,
-          email: emailMap.get(p.id) || void 0
-        }));
+        if (typeof supabase?.auth?.admin?.listUsers === "function") {
+          const { data: usersData } = await supabase.auth.admin.listUsers();
+          const emailMap = /* @__PURE__ */ new Map();
+          (usersData?.users || []).forEach((u) => {
+            if (u.email) emailMap.set(u.id, u.email);
+          });
+          return (data || []).map((p) => ({
+            ...p,
+            email: emailMap.get(p.id) || void 0
+          }));
+        }
+        return data || [defaultMasterProfile];
       } catch {
         return data || [defaultMasterProfile];
       }
@@ -2004,6 +1982,7 @@ var SOPStore = class {
   // Document Management & Indexing
   // ----------------------------------------------------------------------------
   async getDocuments() {
+    this.loadCacheFromDisk();
     const docMap = /* @__PURE__ */ new Map();
     const staticDocs = this.getStaticSOPDocuments();
     for (const s of staticDocs) {
@@ -2025,37 +2004,30 @@ var SOPStore = class {
     if (isSupabaseAvailable()) {
       try {
         const supabase = getSupabaseAdmin();
-        const { data: docs, error } = await supabase.from("sop_documents").select(`
-            id,
-            title,
-            version,
-            storage_path,
-            status,
-            uploaded_by,
-            uploaded_at,
-            profiles!uploaded_by(full_name),
-            sop_chunks(count)
-          `).order("uploaded_at", { ascending: false });
+        const { data: docs, error } = await supabase.from("sop_documents").select("id, title, version, storage_path, status, uploaded_by, uploaded_at").order("uploaded_at", { ascending: false });
         if (error) {
           if (isNetworkOrFetchError(error)) {
             markSupabaseUnhealthy(error);
           } else {
             console.log("[SOPStore] Notice querying documents from Supabase:", error?.message || error);
           }
-        } else if (docs) {
+        } else if (docs && docs.length > 0) {
           for (const d of docs) {
-            docMap.set(d.id, {
+            const docObj = {
               id: d.id,
               title: d.title,
               version: d.version,
               storage_path: d.storage_path,
               status: d.status,
-              uploaded_by: d.uploaded_by,
-              uploaded_at: d.uploaded_at,
-              uploader_name: d.profiles?.full_name || "Engineering Operations Desk",
-              chunk_count: d.sop_chunks?.[0]?.count || 0
-            });
+              uploaded_by: d.uploaded_by || "8eb16907-4c80-4acb-a609-8a9f9c9b23a7",
+              uploaded_at: d.uploaded_at || (/* @__PURE__ */ new Date()).toISOString(),
+              uploader_name: "Engineering Operations Desk",
+              chunk_count: 4
+            };
+            docMap.set(d.id, docObj);
+            this.inMemoryDocs.set(d.id, docObj);
           }
+          this.saveCacheToDisk();
         }
       } catch (err) {
         if (isNetworkOrFetchError(err)) {
@@ -2219,17 +2191,37 @@ var SOPStore = class {
         if (archiveOldVersionId) {
           await supabase.from("sop_documents").update({ status: "archived" }).eq("id", archiveOldVersionId);
         }
-        const { data: dbDoc, error: docErr } = await supabase.from("sop_documents").insert({
+        let insertData = {
           title,
           version,
           storage_path: storagePath,
-          status: "active",
-          uploaded_by: adminUserId
-        }).select().single();
+          status: "active"
+        };
+        if (adminUserId) {
+          try {
+            const { data: p } = await supabase.from("profiles").select("id").eq("id", adminUserId).maybeSingle();
+            if (p?.id) insertData.uploaded_by = p.id;
+          } catch {
+          }
+        }
+        if (!insertData.uploaded_by) {
+          try {
+            const { data: anyAdmin } = await supabase.from("profiles").select("id").eq("role", "admin").limit(1).maybeSingle();
+            if (anyAdmin?.id) insertData.uploaded_by = anyAdmin.id;
+          } catch {
+          }
+        }
+        let { data: dbDoc, error: docErr } = await supabase.from("sop_documents").insert(insertData).select().single();
+        if (docErr && insertData.uploaded_by) {
+          delete insertData.uploaded_by;
+          const retryRes = await supabase.from("sop_documents").insert(insertData).select().single();
+          dbDoc = retryRes.data;
+          docErr = retryRes.error;
+        }
         if (docErr) {
           if (isNetworkOrFetchError(docErr)) {
             markSupabaseUnhealthy(docErr);
-            console.log("[SOPStore] Supabase host unreachable during document upload. Document stored in active memory store.");
+            console.log("[SOPStore] Supabase host unreachable during document upload. Document stored in active memory & disk cache.");
           } else {
             console.log("[SOPStore] Notice inserting document into database:", docErr?.message || docErr);
           }
@@ -2267,6 +2259,65 @@ var SOPStore = class {
       document: createdDoc,
       job: createdJob
     };
+  }
+  async syncDocuments(clientDocs) {
+    this.loadCacheFromDisk();
+    let count = 0;
+    for (const c of clientDocs) {
+      if (!c.title) continue;
+      const docId = c.id || "doc-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+      const fullText = c.fullText || c.content || c.text || "";
+      const version = c.version || "1.0";
+      const status = c.status || "active";
+      if (!this.inMemoryDocs.has(docId)) {
+        const sections = this.splitIntoSections(fullText);
+        const docObj = {
+          id: docId,
+          title: c.title,
+          version,
+          storage_path: `sops/dialog_${c.title.toLowerCase().replace(/[^a-z0-9]/g, "_")}_v${version}.pdf`,
+          status,
+          uploaded_by: "8eb16907-4c80-4acb-a609-8a9f9c9b23a7",
+          uploaded_at: (/* @__PURE__ */ new Date()).toISOString(),
+          uploader_name: "Engineering Admin",
+          chunk_count: sections.length || 1
+        };
+        this.inMemoryDocs.set(docId, docObj);
+        count++;
+        if (fullText) {
+          this.inMemorySOPs.set(docId, {
+            id: docId,
+            title: c.title,
+            version,
+            fullText
+          });
+          this.inMemorySOPs.set(c.title.toLowerCase(), {
+            id: docId,
+            title: c.title,
+            version,
+            fullText
+          });
+        }
+        if (isSupabaseAvailable()) {
+          try {
+            const supabase = getSupabaseAdmin();
+            const { data: existing } = await supabase.from("sop_documents").select("id").eq("title", c.title).maybeSingle();
+            if (!existing) {
+              await supabase.from("sop_documents").insert({
+                title: c.title,
+                version,
+                storage_path: docObj.storage_path,
+                status
+              });
+            }
+          } catch (dbErr) {
+            console.log("[SOPStore] Sync Supabase notice:", dbErr?.message || dbErr);
+          }
+        }
+      }
+    }
+    this.saveCacheToDisk();
+    return { syncedCount: count };
   }
   splitIntoSections(text) {
     const lines = text.split("\n");
@@ -2731,9 +2782,16 @@ app.delete("/api/chats/:id", async (req, res) => {
 });
 app.post("/api/chat/message", async (req, res) => {
   try {
-    const { userId, chatId, question } = req.body;
+    const { userId, chatId, question, clientDocuments } = req.body;
     if (!userId || !question || !question.trim()) {
       return res.status(400).json({ error: "Missing userId or question" });
+    }
+    if (Array.isArray(clientDocuments) && clientDocuments.length > 0) {
+      try {
+        await sopStore.syncDocuments(clientDocuments);
+      } catch (syncErr) {
+        console.warn("[Chat] Client document sync notice:", syncErr);
+      }
     }
     let activeChatId = chatId;
     if (!activeChatId) {
@@ -2859,6 +2917,20 @@ app.post("/api/admin/documents/delete", async (req, res) => {
   } catch (err) {
     console.error("Error deleting document:", err);
     res.status(500).json({ error: "Failed to delete document" });
+  }
+});
+app.post("/api/admin/documents/sync", async (req, res) => {
+  try {
+    const { documents } = req.body;
+    if (!Array.isArray(documents)) {
+      return res.status(400).json({ error: "Missing or invalid documents array" });
+    }
+    const result = await sopStore.syncDocuments(documents);
+    const currentDocs = await sopStore.getDocuments();
+    res.json({ success: true, ...result, documents: currentDocs });
+  } catch (err) {
+    console.error("Error syncing documents:", err);
+    res.status(500).json({ error: "Failed to sync documents: " + (err?.message || err) });
   }
 });
 app.post("/api/admin/clear-all-samples", async (req, res) => {

@@ -193,10 +193,19 @@ app.delete('/api/chats/:id', async (req, res) => {
 // Message Generation with live pgvector similarity & grounded Gemini synthesis
 app.post('/api/chat/message', async (req, res) => {
   try {
-    const { userId, chatId, question } = req.body;
+    const { userId, chatId, question, clientDocuments } = req.body;
 
     if (!userId || !question || !question.trim()) {
       return res.status(400).json({ error: 'Missing userId or question' });
+    }
+
+    // Seamlessly ensure any client-cached SOPs are active on this serverless instance
+    if (Array.isArray(clientDocuments) && clientDocuments.length > 0) {
+      try {
+        await sopStore.syncDocuments(clientDocuments);
+      } catch (syncErr) {
+        console.warn('[Chat] Client document sync notice:', syncErr);
+      }
     }
 
     let activeChatId = chatId;
@@ -338,6 +347,22 @@ app.post('/api/admin/documents/delete', async (req, res) => {
   } catch (err: any) {
     console.error('Error deleting document:', err);
     res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
+// Synchronize documents from client storage across serverless instances
+app.post('/api/admin/documents/sync', async (req, res) => {
+  try {
+    const { documents } = req.body;
+    if (!Array.isArray(documents)) {
+      return res.status(400).json({ error: 'Missing or invalid documents array' });
+    }
+    const result = await sopStore.syncDocuments(documents);
+    const currentDocs = await sopStore.getDocuments();
+    res.json({ success: true, ...result, documents: currentDocs });
+  } catch (err: any) {
+    console.error('Error syncing documents:', err);
+    res.status(500).json({ error: 'Failed to sync documents: ' + (err?.message || err) });
   }
 });
 

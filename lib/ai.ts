@@ -60,59 +60,25 @@ PRIMARY OPERATIONAL DIRECTIVES (STRICT COMPLIANCE REQUIRED):
 
 2. SHOULD BE BULLETS AND POINTS:
    - Output MUST be structured EXCLUSIVELY in clean, punchy bullets ('* ') and numbered points ('1. ', '2. ').
-   - Never write narrative paragraphs, conversational filler, or unbroken walls of text. Every section must consist of distinct bullet items or numbered sequence steps with bold lead descriptors.
+   - Never write narrative paragraphs, conversational filler, or unbroken walls of text. Every item must have a bold lead descriptor: '* **[Lead Descriptor]:** [Actionable operational detail]'.
 
 3. SHOULD ONLY GIVE ASKED QUESTION RELATED ANSWER FROM SOPS:
    - Focus directly and specifically on the asked question/task.
    - Exclude unrelated chapters, equipment, or subsystems (for example: do NOT include battery sensors, door alarms, or inverter settings when asked about antenna installation).
 
-4. INCLUDE REQUIRED SECTIONS FROM SITE ENTRY, HEALTH & SAFETY, REQUIRED MATERIALS & TOOLS, PROCEDURE, CLEANING & TO EXIT, PLUS ANY MISSING SECTIONS:
-   - The restructured output MUST present the following sections in field operational sequence:
-     • 🚪 Site Entry & Pre-Access Requirements
-     • 🛡️ Health & Safety Guidelines
-     • 🧰 Required Materials, Tools & Equipment
-     • 📋 Step-by-Step Procedure (Numbered points for sequential execution)
-     • ⚠️ Critical Quality Checkpoints & Inspection Tolerances (Numerical tolerances, clearances, limits)
-     • 🧹 Site Cleaning, Exit & Handover Procedures (Site cleaning, waste removal, cavity sealing check, NOC sign-off & exit)
-     • 🛡️ Weatherproofing, Grounding & Environmental Protection (Include if SOP has weatherproofing/earthing for this task)
-     • 📑 Source SOP References & Sections
-   - Format each actionable step with a bold lead label: '1. **[Step Descriptor]:** [Actionable operational detail]'.
-   - Format quality checkpoints with bold lead labels: '* **[Tolerance Parameter]:** [Exact limit, e.g. 1200mm ~ 1600mm, ±15°, 0.03 dB]'.
-   - Format tools and materials with bold lead labels: '* **[Tool Name]:** [Specification or calibrated standard]'.
-   - Format entry, safety, cleaning and exit items with bold lead labels: '* **[Descriptor]:** [Instruction strictly from SOP]'.
-
-STRUCTURE OF THE RESTRUCTURED RESPONSE:
-   ### 📘 [SOP Title or Document Code] — Field Operational Mini Guideline
-
-   **🎯 Objective & Inquiry Scope:**
-   * [1-2 concise bullet points defining the specific task or procedure asked by the officer]
-
-   ### 🚪 Site Entry & Pre-Access Requirements
-   * **[Access / Permit Requirement]:** [Actionable clearance, work permits, NOC notification, or site pre-access inspection from SOP]
-
-   ### 🛡️ Health & Safety Guidelines
-   * **[Mandatory PPE / Hazard Control]:** [Specific PPE, climbing harness, RF radiation hazards, electrical safety, or laser precautions from SOP]
-
-   ### 🧰 Required Materials, Tools & Equipment
-   * **[Tool / Material Name]:** [Specification, calibrated tool, torque wrench, C-clamp, brackets, washers, or consumables from SOP]
-
-   ### 📋 Step-by-Step Procedure
-   1. **[Step Descriptor]:** [Actionable sequence step directly addressing the asked question from SOP]
-   2. **[Step Descriptor]:** [Actionable sequence step directly addressing the asked question from SOP]
-
-   ### ⚠️ Critical Quality Checkpoints & Inspection Tolerances
-   * **[Parameter]:** [Exact numerical tolerance from SOP, e.g. 1200mm ~ 1600mm clearance, ±15° azimuth, 0.03 dB loss, torque Nm]
-
-   ### 🧹 Site Cleaning, Exit & Handover Procedures
-   * **[Work Area Cleaning & Debris]:** [Clear all debris, offcuts, packaging, or fiber shards from the work area per SOP]
-   * **[Tool & Equipment Check]:** [Ensure all tools are packed and all maintenance cavity cover plates/doors are secured]
-   * **[NOC Telemetry & Handover]:** [Contact Dialog NOC / FSM to verify telemetry, submit test results, and clear site exit]
-
-   ### 🛡️ Weatherproofing, Grounding & Environmental Protection
-   * **[Protection Measure]:** [Cavity water seal, rubber bushes, vacant RF port dust caps, structural grounding with C-clamp]
-
-   ### 📑 Source SOP References & Sections
-   * [Exact SOP manual title, version number, and specific section clauses referenced]
+4. RESTRUCTURE WITH ONLY RELEVANT SECTIONS FROM PROVIDED SOPS:
+   - Present ONLY the sections that are genuinely relevant to the field officer's inquiry and documented in the provided SOPs.
+   - Do NOT output empty, boilerplate, or irrelevant sections. If a section does not apply to the specific question or is not covered in the SOPs, OMIT IT entirely.
+   - Candidate sections in field operational sequence (include only those relevant):
+     • 🎯 Objective & Inquiry Scope (1-2 concise bullet points directly defining the task or inquiry scope)
+     • 🚪 Site Entry & Pre-Access Requirements (Include ONLY IF site access, work permits, or pre-access checks are documented for this task in the SOP)
+     • 🛡️ Health & Safety Guidelines (Include ONLY IF safety rules, PPE, climbing fall-arrest, RF, or electrical hazard controls are documented in the SOP)
+     • 🧰 Required Materials, Tools & Equipment (Include ONLY IF specific tools, torque wrenches, meters, or materials are documented in the SOP)
+     • 📋 Step-by-Step Procedure (Numbered points '1. **[Step Descriptor]:** ...' detailing the sequential procedure directly answering the question)
+     • ⚠️ Critical Quality Checkpoints & Inspection Tolerances (Include ONLY IF numerical tolerances, clearances, torque values, or limits exist in the SOP)
+     • 🧹 Site Cleaning, Exit & Handover Procedures (Include ONLY IF work area cleaning, cavity checks, NOC clearance, or exit steps are documented in the SOP)
+     • 🛡️ Weatherproofing, Grounding & Environmental Protection (Include ONLY IF weatherproofing, earthing, or environmental protection apply in the SOP)
+     • 📑 Source SOP References & Sections (Exact SOP manual title, version number, and specific section clauses referenced)
 
 5. ESCALATION CONDITION:
    - ONLY if the query is genuinely completely absent and completely unrelated to any content in the provided SOPs, output:
@@ -447,15 +413,19 @@ TASK EXECUTION & OPERATIONAL DIRECTIVES:
 1. STRICTLY REFER WHOLE SOPS UPLOADED BY ADMIN: Base every single bullet point and sequence step strictly on the SOP text provided above.
 2. SHOULD BE BULLETS AND POINTS: Every single section MUST consist of bullets ('* ') or numbered points ('1. ', '2. '). Never use continuous narrative prose or paragraphs. Every item must have a bold lead descriptor.
 3. SHOULD ONLY GIVE ASKED QUESTION RELATED ANSWER FROM SOPS: Focus directly and specifically on the asked question/task. Exclude unrelated chapters, subsystems, or equipment (e.g. do not include battery sensors, door alarms, or inverter settings when asked about antenna installation).
-4. INCLUDE SECTIONS IN FIELD OPERATIONAL SEQUENCE:
-   - 🚪 Site Entry & Pre-Access Requirements (Clearance, permits, pre-access hazard check)
-   - 🛡️ Health & Safety Guidelines (Mandatory PPE, height harness, RF/electrical hazards)
-   - 🧰 Required Materials, Tools & Equipment (Calibrated tools, torque wrench, C-clamps, washers, consumables)
-   - 📋 Step-by-Step Procedure (Numbered sequence points '1. **[Step Descriptor]:** ...' directly answering the asked question)
-   - ⚠️ Critical Quality Checkpoints & Inspection Tolerances (Numerical limits, clearances, torque values, dB loss)
-   - 🧹 Site Cleaning, Exit & Handover Procedures (Debris cleanup, cavity check, NOC clearance, site exit)
-   - 🛡️ Weatherproofing, Grounding & Environmental Protection (Add if applicable from SOP)
-   - 📑 Source SOP References & Sections
+4. RESTRUCTURE WITH ONLY RELEVANT SECTIONS FROM PROVIDED SOPS:
+   - Present ONLY the sections that are genuinely relevant to the field officer's inquiry and documented in the provided SOPs.
+   - Do NOT output empty, boilerplate, or irrelevant sections. If a section does not apply to the specific question or is not covered in the SOPs, OMIT IT entirely.
+   - Candidate sections in field operational sequence (include only those relevant):
+     • 🎯 Objective & Inquiry Scope (1-2 concise bullet points directly defining the task or inquiry scope)
+     • 🚪 Site Entry & Pre-Access Requirements (Include ONLY IF site access, work permits, or pre-access checks are documented for this task in the SOP)
+     • 🛡️ Health & Safety Guidelines (Include ONLY IF safety rules, PPE, climbing fall-arrest, RF, or electrical hazard controls are documented in the SOP)
+     • 🧰 Required Materials, Tools & Equipment (Include ONLY IF specific tools, torque wrenches, meters, or materials are documented in the SOP)
+     • 📋 Step-by-Step Procedure (Numbered points '1. **[Step Descriptor]:** ...' detailing the sequential procedure directly answering the question)
+     • ⚠️ Critical Quality Checkpoints & Inspection Tolerances (Include ONLY IF numerical tolerances, clearances, torque values, or limits exist in the SOP)
+     • 🧹 Site Cleaning, Exit & Handover Procedures (Include ONLY IF work area cleaning, cavity checks, NOC clearance, or exit steps are documented in the SOP)
+     • 🛡️ Weatherproofing, Grounding & Environmental Protection (Include ONLY IF weatherproofing, earthing, or environmental protection apply in the SOP)
+     • 📑 Source SOP References & Sections (Exact SOP manual title, version number, and specific section clauses referenced)
    Ground every point in the uploaded SOP text above; only use the escalation notice if the query has zero relation to any of the uploaded SOPs.`;
 
       for (const model of candidateModels) {
@@ -1230,16 +1200,15 @@ function searchAndSynthesizeFromAllSOPs(
 
       // 7. Step-by-Step Procedure Steps
       const isActionStep =
-        cl.includes('vertically') || cl.includes('minimum of 1200mm') || cl.includes('arms of the antenna') ||
-        cl.includes('fixed firmly') || cl.includes('torque wrench should be used') || cl.includes('washers must be installed') ||
-        cl.includes('extra length of the rru') || cl.includes('stripped part of the aau') || cl.includes('strip') ||
-        cl.includes('clean the bare') || cl.includes('cleave fiber') || cl.includes('load into fusion') ||
-        cl.includes('heat-shrink');
+        /\b(?:ensure|install|mount|connect|tighten|fasten|verify|inspect|check|measure|align|configure|route|strip|cleave|splice|secure|prepare|apply|remove|attach|place|insert|test|record|calibrate|switch|turn|open|close|maintain|adjust)\b/i.test(clean) ||
+        /(?:step\s*\d+|^\d+[\.\)]|[a-z][\.\)])/i.test(rawClause) ||
+        cl.includes('vertically') || cl.includes('arms of the antenna') || cl.includes('fixed firmly') ||
+        cl.includes('torque wrench') || cl.includes('washers') || cl.includes('rru') || cl.includes('aau') ||
+        cl.includes('bare fiber') || cl.includes('cleave') || cl.includes('fusion') || cl.includes('heat-shrink');
 
-      if (isActionStep) {
+      if (isActionStep && !cl.includes('site entry') && !cl.includes('gate') && !cl.includes('sign-off')) {
         const title = deriveStepDescriptor(clean);
-        // Avoid duplicate titles
-        if (!procedureSteps.some(s => s.title === title)) {
+        if (!procedureSteps.some(s => s.text === clean || (s.title === title && procedureSteps.length > 6))) {
           procedureSteps.push({ title, text: clean });
         }
       }
@@ -1256,35 +1225,27 @@ function searchAndSynthesizeFromAllSOPs(
 
   // Deduplicate helper
   const dedupe = (arr: string[], max: number = 6) => Array.from(new Set(arr)).slice(0, max);
-  const finalProc = procedureSteps.slice(0, 10);
+  let finalProc = procedureSteps.slice(0, 10);
   const finalTolerances = dedupe(qualityTolerances, 6);
   const finalTools = dedupe(toolsMaterials, 6);
   const finalWeather = dedupe(weatherproofingProtection, 5);
+  const finalSafety = dedupe(healthSafety, 5);
+  const finalEntry = dedupe(siteEntry, 4);
+  const finalExit = dedupe(siteExit, 4);
 
-  // Ensure mandatory lifecycle sections always have grounded points
-  let finalSafety = dedupe(healthSafety, 4);
-  if (finalSafety.length === 0) {
-    finalSafety = [
-      '**Mandatory PPE:** Approved industrial helmet, steel-toe protective boots, and high-visibility vest must be worn at all times on site.',
-      '**Operational Hazard Controls:** Maintain safe clearance from high-voltage cables and RF radiating antennas; follow two-person safety buddy protocol during field tasks.'
-    ];
-  }
-
-  let finalEntry = dedupe(siteEntry, 3);
-  if (finalEntry.length === 0) {
-    finalEntry = [
-      '**Access Authorization:** Verify valid Dialog work order and site permit-to-work clearance prior to entering the premises.',
-      '**Pre-Work Hazard Assessment:** Inspect weather conditions, tower structural integrity, and local perimeter hazards before starting work.'
-    ];
-  }
-
-  let finalExit = dedupe(siteExit, 4);
-  if (finalExit.length === 0) {
-    finalExit = [
-      '**Work Area Housekeeping:** Collect and remove all cable cuttings, packaging waste, and installation debris from the work area.',
-      '**Equipment & Cavity Verification:** Confirm all maintenance cavity cover plates, weather seals, and port dust caps are firmly secured.',
-      '**NOC Clearance & Handover:** Contact Dialog NOC to verify link alarms and operational telemetry before completing digital sign-off and exiting the site.'
-    ];
+  // If procedure steps were not tagged via action verbs, extract top matched relevant clauses
+  if (finalProc.length === 0 && topDocs.length > 0) {
+    const rawClauses = splitIntoDiscreteClauses(topDocs[0].fullText);
+    for (const raw of rawClauses) {
+      const clean = raw.replace(/^[•\-\*#\d\.\)]+\s*/, '').trim();
+      if (clean.length > 25 && searchTerms.some(t => clean.toLowerCase().includes(t))) {
+        finalProc.push({
+          title: deriveStepDescriptor(clean),
+          text: clean,
+        });
+        if (finalProc.length >= 6) break;
+      }
+    }
   }
 
   // Objective summary

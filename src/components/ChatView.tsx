@@ -159,6 +159,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setIsLoading(true);
 
     try {
+      let clientDocs: any[] = [];
+      try {
+        const rawCached = localStorage.getItem('dialog_saved_sop_docs');
+        if (rawCached) {
+          const parsed = JSON.parse(rawCached);
+          if (Array.isArray(parsed)) clientDocs = parsed;
+        }
+      } catch {}
+
       const res = await fetch('/api/chat/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,6 +176,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           chatId: activeChatId,
           question: questionText,
           language: currentProfile.language,
+          clientDocuments: clientDocs,
         }),
       });
 

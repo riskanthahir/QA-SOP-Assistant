@@ -83,13 +83,56 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
         fetch('/api/admin/documents'),
         fetch('/api/admin/indexing-jobs'),
       ]);
+
+      let serverDocs: SOPDocument[] = [];
       if (docsRes.ok) {
-        const docs = await docsRes.json();
-        setDocuments(docs);
+        const raw = await docsRes.json();
+        if (Array.isArray(raw)) serverDocs = raw;
       }
       if (jobsRes.ok) {
         const jobs = await jobsRes.json();
         setIndexingJobs(jobs);
+      }
+
+      // Check client-side persistent storage
+      let localCachedDocs: any[] = [];
+      try {
+        const rawLocal = localStorage.getItem('dialog_saved_sop_docs');
+        if (rawLocal) localCachedDocs = JSON.parse(rawLocal);
+      } catch {}
+
+      if (serverDocs.length > 0) {
+        setDocuments(serverDocs);
+        // Sync local cache with server docs
+        try {
+          const merged = [...localCachedDocs];
+          for (const s of serverDocs) {
+            const idx = merged.findIndex((m: any) => m.id === s.id || m.title?.toLowerCase() === s.title?.toLowerCase());
+            if (idx >= 0) {
+              merged[idx] = { ...merged[idx], ...s };
+            } else {
+              merged.push(s);
+            }
+          }
+          localStorage.setItem('dialog_saved_sop_docs', JSON.stringify(merged));
+        } catch {}
+      } else if (localCachedDocs.length > 0) {
+        // If server was cold-started without docs, use local cached docs and re-sync to server
+        setDocuments(localCachedDocs as SOPDocument[]);
+        fetch('/api/admin/documents/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documents: localCachedDocs }),
+        })
+          .then((res) => res.json())
+          .then((resData) => {
+            if (resData.documents && Array.isArray(resData.documents)) {
+              setDocuments(resData.documents);
+            }
+          })
+          .catch(() => {});
+      } else {
+        setDocuments([]);
       }
     } catch (err) {
       console.error('Failed to fetch admin data:', err);
@@ -317,6 +360,23 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
         `Successfully saved and indexed "${data.document.title}" (v${data.document.version}) in the live repository. All field engineers can now query this document.`
       );
 
+      // Persist in client browser storage so refresh never loses SOPs
+      try {
+        const rawExisting = localStorage.getItem('dialog_saved_sop_docs');
+        const existingList = rawExisting ? JSON.parse(rawExisting) : [];
+        const newRecord = {
+          ...data.document,
+          fullText: rawText.trim(),
+        };
+        const updated = [
+          newRecord,
+          ...existingList.filter((d: any) => d.id !== data.document.id && d.title?.toLowerCase() !== data.document.title?.toLowerCase()),
+        ];
+        localStorage.setItem('dialog_saved_sop_docs', JSON.stringify(updated));
+      } catch (lsErr) {
+        console.warn('LocalStorage save notice:', lsErr);
+      }
+
       // Reset form
       setTitle('');
       setVersion('1.0');
@@ -373,6 +433,14 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       });
       if (res.ok) {
         setUploadSuccess('Document archived from active retrieval.');
+        try {
+          const raw = localStorage.getItem('dialog_saved_sop_docs');
+          if (raw) {
+            const list = JSON.parse(raw);
+            const updated = list.map((d: any) => d.id === docId ? { ...d, status: 'archived' } : d);
+            localStorage.setItem('dialog_saved_sop_docs', JSON.stringify(updated));
+          }
+        } catch {}
         fetchDocumentsAndJobs();
         onDocumentsChanged?.();
       }
@@ -390,6 +458,14 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       });
       if (res.ok) {
         setUploadSuccess('Document restored to active SOP repository.');
+        try {
+          const raw = localStorage.getItem('dialog_saved_sop_docs');
+          if (raw) {
+            const list = JSON.parse(raw);
+            const updated = list.map((d: any) => d.id === docId ? { ...d, status: 'active' } : d);
+            localStorage.setItem('dialog_saved_sop_docs', JSON.stringify(updated));
+          }
+        } catch {}
         fetchDocumentsAndJobs();
         onDocumentsChanged?.();
       }
@@ -407,6 +483,14 @@ export const AdminUploadView: React.FC<AdminUploadViewProps> = ({ currentProfile
       if (res.ok) {
         setUploadSuccess(`Successfully deleted "${doc.title}" from backend repository and search index.`);
         setDeleteConfirmDoc(null);
+        try {
+          const raw = localStorage.getItem('dialog_saved_sop_docs');
+          if (raw) {
+            const list = JSON.parse(raw);
+            const filtered = list.filter((d: any) => d.id !== doc.id && d.title?.toLowerCase() !== doc.title?.toLowerCase());
+            localStorage.setItem('dialog_saved_sop_docs', JSON.stringify(filtered));
+          }
+        } catch {}
         fetchDocumentsAndJobs();
         onDocumentsChanged?.();
       } else {

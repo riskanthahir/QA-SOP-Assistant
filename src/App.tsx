@@ -41,13 +41,46 @@ export default function App() {
     fetch('/api/admin/documents')
       .then((res) => res.json())
       .then((docs: SOPDocument[]) => {
-        if (Array.isArray(docs)) {
-          const activeDocs = docs.filter((d) => d.status === 'active');
-          setDocCount(activeDocs.length);
+        let activeCount = 0;
+        if (Array.isArray(docs) && docs.length > 0) {
+          activeCount = docs.filter((d) => d.status === 'active').length;
+          setDocCount(activeCount);
+        } else {
+          // Check if client has cached documents in localStorage
+          try {
+            const raw = localStorage.getItem('dialog_saved_sop_docs');
+            if (raw) {
+              const cached = JSON.parse(raw);
+              if (Array.isArray(cached) && cached.length > 0) {
+                setDocCount(cached.filter((d: any) => d.status !== 'archived').length);
+                // Push cached documents to serverless instance
+                fetch('/api/admin/documents/sync', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ documents: cached }),
+                }).catch(() => {});
+              } else {
+                setDocCount(0);
+              }
+            } else {
+              setDocCount(0);
+            }
+          } catch {
+            setDocCount(0);
+          }
         }
       })
       .catch((err) => {
         console.error('Failed to sync document count:', err);
+        try {
+          const raw = localStorage.getItem('dialog_saved_sop_docs');
+          if (raw) {
+            const cached = JSON.parse(raw);
+            if (Array.isArray(cached)) {
+              setDocCount(cached.filter((d: any) => d.status !== 'archived').length);
+            }
+          }
+        } catch {}
       });
   };
 

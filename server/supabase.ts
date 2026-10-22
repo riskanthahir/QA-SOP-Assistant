@@ -55,7 +55,7 @@ export const isSupabaseConfigured = (): boolean => {
 };
 
 // Health state management for graceful offline resilience
-let isSupabaseHealthy: boolean = false;
+let isSupabaseHealthy: boolean = isSupabaseConfigured();
 let isCheckingHealth: boolean = false;
 let lastUnhealthyReason: string | null = null;
 let lastCheckTimestamp: number = 0;
@@ -80,7 +80,7 @@ export function markSupabaseUnhealthy(err: any) {
   const reason = err?.message || err?.details || String(err || 'Connection error');
   if (lastUnhealthyReason !== reason) {
     lastUnhealthyReason = reason;
-    console.log('[Supabase] High-availability local standalone mode active with verified Dialog SOP documents.');
+    console.log('[Supabase] Host unreachable or offline:', reason);
   }
 }
 
@@ -94,7 +94,7 @@ export function isSupabaseAvailable(): boolean {
   if (!isSupabaseConfigured()) return false;
   if (!isSupabaseHealthy) {
     if (Date.now() - lastCheckTimestamp >= HEALTH_CHECK_COOLDOWN_MS) {
-      // Trigger background reachability probe without blocking or failing the caller
+      // Trigger background reachability probe without blocking caller
       checkSupabaseReachability().catch(() => {});
     }
     return false;
